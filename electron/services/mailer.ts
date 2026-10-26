@@ -18,10 +18,12 @@ export function replaceVariables(text: string, vars: Record<string, string>): st
 
 // 创建 nodemailer transporter
 function createTransporter(account: Account) {
+  // 端口 465 采用直接 SSL/TLS (secure: true)；端口 587/25 采用 STARTTLS 协商升级 (secure: false)
+  const isSecure = account.port === 465 ? true : (account.port === 587 ? false : !!account.use_ssl);
   return nodemailer.createTransport({
     host: account.host,
     port: account.port,
-    secure: account.port === 465 || account.use_ssl,
+    secure: isSecure,
     auth: {
       user: account.username,
       pass: account.password,
@@ -72,7 +74,22 @@ export async function testSmtp(account: Account, testTo: string) {
       <p style="color: #888;">此发件箱已就绪，可随时用于单发或多邮箱分摊群发。</p>
     </div>
   `;
-  return await sendSingleMail(account, testTo, '测试收件人', subject, html);
+  try {
+    return await sendSingleMail(account, testTo, '测试收件人', subject, html);
+  } catch (err: any) {
+    let msg = err.message || 'SMTP 测试失败';
+    const isGmail = (account.host && account.host.includes('gmail')) || (account.from_email && account.from_email.includes('@gmail.com'));
+    if (
+      isGmail &&
+      (msg.includes('535') ||
+        msg.includes('Username and Password not accepted') ||
+        msg.includes('Invalid login') ||
+        msg.includes('BadCredentials'))
+    ) {
+      msg = 'Gmail 认证失败：Google 要求使用 16 位「应用专用密码」(App Password) 代替普通密码登录第三方客户端。请先在 Google 账号中开启两步验证，再访问 https://myaccount.google.com/apppasswords 生成应用专用密码填入。';
+    }
+    throw new Error(msg);
+  }
 }
 
 // 群发任务运行控制

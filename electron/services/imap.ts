@@ -41,6 +41,23 @@ export async function testImap(account: Account) {
   try {
     await client.connect();
     return true;
+  } catch (err: any) {
+    let msg = err.message || 'IMAP 测试连接失败';
+    const isGmail =
+      (account.imap_host && account.imap_host.includes('gmail')) ||
+      account.host.includes('gmail') ||
+      account.from_email.includes('@gmail.com');
+    if (
+      isGmail &&
+      (msg.includes('AUTHENTICATIONFAILED') ||
+        msg.includes('Invalid credentials') ||
+        msg.includes('Username and Password not accepted') ||
+        msg.includes('535'))
+    ) {
+      msg =
+        'Gmail IMAP 登录失败：请确认 1) Gmail 网页端「所有设置 - 转发和 POP/IMAP」中已开启 IMAP；2) 密码使用的是 16 位 Google「应用专用密码」(App Password) 而非普通登录密码。';
+    }
+    throw new Error(msg);
   } finally {
     try {
       await client.logout();

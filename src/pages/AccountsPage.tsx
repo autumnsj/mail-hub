@@ -40,6 +40,11 @@ export const AccountsPage: React.FC = () => {
   const [testingImap, setTestingImap] = useState(false);
 
   const [form] = Form.useForm();
+  const watchedHost = Form.useWatch('host', form);
+  const watchedFromEmail = Form.useWatch('from_email', form);
+  const isGmail =
+    (watchedHost && watchedHost.includes('gmail')) ||
+    (watchedFromEmail && watchedFromEmail.includes('@gmail.com'));
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -368,6 +373,22 @@ export const AccountsPage: React.FC = () => {
           }
         />
 
+        {isGmail && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="Gmail 接入配置须知 (请仔细核对)"
+            description={
+              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                <div>1. <strong>禁止直接输入 Google 普通账号密码</strong>：Google 早已强制要求第三方邮件客户端使用 <strong>16 位「应用专用密码」(App Password)</strong>；</div>
+                <div>2. 请前往 <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>Google 账号应用专用密码生成页 ↗</a>（需提前开启两步验证），生成后将 16 位密码复制填入下方；</div>
+                <div>3. 若需在收件箱中接收邮件，请确保在 <a href="https://mail.google.com/mail/u/0/#settings/fwdandpop" target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>Gmail 网页端设置 ↗</a> 中已勾选启用 IMAP 状态。</div>
+              </div>
+            }
+          />
+        )}
+
         <Form form={form} layout="vertical">
           <Form.Item
             name="name"
@@ -405,7 +426,7 @@ export const AccountsPage: React.FC = () => {
               label="授权码 / 密码"
               rules={[{ required: true, message: '请输入密码或授权码' }]}
               style={{ width: 300 }}
-              extra="QQ/163 邮箱需使用专用客户端授权码"
+              extra={isGmail ? 'Gmail 必须使用 16 位 Google 应用专用密码' : 'QQ/163/Gmail 均需使用专用客户端授权码/应用密码'}
             >
               <Input.Password placeholder="授权码或密码" />
             </Form.Item>
