@@ -130,6 +130,8 @@ export const TasksPage: React.FC = () => {
   const openSpeedModal = (c: Campaign) => {
     setEditingCamp(c);
     speedForm.setFieldsValue({
+      send_mode: c.send_mode || 'interval',
+      target_duration_minutes: c.target_duration_minutes || 60,
       min_interval: c.min_interval || 3,
       max_interval: c.max_interval || 8,
       enable_batch_rest: c.enable_batch_rest !== false,
@@ -145,13 +147,15 @@ export const TasksPage: React.FC = () => {
       if (!editingCamp) return;
       await window.electronAPI.updateCampaignConfig({
         id: editingCamp.id,
-        min_interval: values.min_interval,
-        max_interval: values.max_interval,
+        send_mode: values.send_mode,
+        target_duration_minutes: values.target_duration_minutes,
+        min_interval: values.min_interval || 3,
+        max_interval: values.max_interval || 8,
         enable_batch_rest: values.enable_batch_rest,
         batch_size: values.batch_size,
         batch_rest_sec: values.batch_rest_sec,
       });
-      message.success('发送速率与抖动参数已更新');
+      message.success('发送速率与控速参数已更新');
       setSpeedModalOpen(false);
       fetchCampaigns();
     } catch (e: any) {
@@ -226,11 +230,24 @@ export const TasksPage: React.FC = () => {
       },
     },
     {
-      title: '防封抖动设置',
-      width: 140,
+      title: '控速与防封策略',
+      width: 170,
       render: (_: any, r: Campaign) => (
         <div>
-          <div>{r.min_interval}~{r.max_interval} 秒/封</div>
+          {r.send_mode === 'time_budget' ? (
+            <div>
+              <Tag color="purple">限时 {r.target_duration_minutes || 60} 分钟发完</Tag>
+              {r.target_finish_time && (
+                <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                  预计: {r.target_finish_time.slice(11, 16)} 前
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <div>{r.min_interval}~{r.max_interval} 秒/封</div>
+            </div>
+          )}
           {r.enable_batch_rest && (
             <div style={{ fontSize: 11, color: '#888' }}>
               每{r.batch_size}封休{r.batch_rest_sec}s
@@ -326,9 +343,9 @@ export const TasksPage: React.FC = () => {
         pagination={{ pageSize: 10 }}
       />
 
-      {/* 调整速率与抖动模态框 */}
+      {/* 调整速率与控速模式模态框 */}
       <Modal
-        title={`调整任务发送速率与抖动参数: ${editingCamp?.title}`}
+        title={`调整任务发送速率与控速模式: ${editingCamp?.title}`}
         open={speedModalOpen}
         onOk={handleSaveSpeed}
         onCancel={() => setSpeedModalOpen(false)}
@@ -336,17 +353,42 @@ export const TasksPage: React.FC = () => {
         cancelText="取消"
       >
         <Form form={speedForm} layout="vertical">
-          <Form.Item label="单封之间随机抖动延时 (秒)" required>
-            <Space align="center">
-              <span>最短：</span>
-              <Form.Item name="min_interval" noStyle rules={[{ required: true }]}>
-                <InputNumber min={1} max={60} addonAfter="秒" />
-              </Form.Item>
-              <span>至 最长：</span>
-              <Form.Item name="max_interval" noStyle rules={[{ required: true }]}>
-                <InputNumber min={1} max={180} addonAfter="秒" />
-              </Form.Item>
-            </Space>
+          <Form.Item label="控速模式" name="send_mode">
+            <Radio.Group buttonStyle="solid">
+              <Radio.Button value="time_budget">🎯 限定总时长匀速发完</Radio.Button>
+              <Radio.Button value="interval">⏱️ 固定间隔区间随机抖动</Radio.Button>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prev, curr) => prev.send_mode !== curr.send_mode}
+          >
+            {({ getFieldValue }) =>
+              getFieldValue('send_mode') === 'time_budget' ? (
+                <Form.Item
+                  label="限定在多长时间内发完 (分钟)"
+                  name="target_duration_minutes"
+                  extra="系统将自动根据剩余待发邮件数平摊计算单封间隔，实时匀速平稳发完"
+                  rules={[{ required: true, message: '请输入目标限时' }]}
+                >
+                  <InputNumber min={5} max={1440} addonAfter="分钟" style={{ width: 160 }} />
+                </Form.Item>
+              ) : (
+                <Form.Item label="单封之间随机抖动延时 (秒)" required>
+                  <Space align="center">
+                    <span>最短：</span>
+                    <Form.Item name="min_interval" noStyle rules={[{ required: true }]}>
+                      <InputNumber min={1} max={60} addonAfter="秒" />
+                    </Form.Item>
+                    <span>至 最长：</span>
+                    <Form.Item name="max_interval" noStyle rules={[{ required: true }]}>
+                      <InputNumber min={1} max={180} addonAfter="秒" />
+                    </Form.Item>
+                  </Space>
+                </Form.Item>
+              )
+            }
           </Form.Item>
 
           <Form.Item name="enable_batch_rest" label="批次深度休息保护" valuePropName="checked">

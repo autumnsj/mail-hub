@@ -75,6 +75,8 @@ export interface DraftMail {
   recipients_text?: string;
   min_interval?: number;
   max_interval?: number;
+  send_mode?: 'interval' | 'time_budget';
+  target_duration_minutes?: number;
   created_at: string;
   updated_at: string;
 }
@@ -114,6 +116,10 @@ export interface Campaign {
   total_count: number;
   success_count: number;
   fail_count: number;
+  send_mode?: 'interval' | 'time_budget';
+  target_duration_minutes?: number;
+  target_finish_time?: string;
+  started_at?: string;
   min_interval: number;
   max_interval: number;
   enable_batch_rest?: boolean;
@@ -171,6 +177,8 @@ export interface ElectronAPI {
     account_ids: number[];
     group_ids?: number[];
     recipients_text?: string;
+    send_mode?: 'interval' | 'time_budget';
+    target_duration_minutes?: number;
     min_interval: number;
     max_interval: number;
     enable_batch_rest?: boolean;
@@ -184,6 +192,8 @@ export interface ElectronAPI {
   pauseCampaign: (id: number) => Promise<boolean>;
   updateCampaignConfig: (payload: {
     id: number;
+    send_mode?: 'interval' | 'time_budget';
+    target_duration_minutes?: number;
     min_interval: number;
     max_interval: number;
     enable_batch_rest?: boolean;

@@ -116,6 +116,8 @@ export const DraftsPage: React.FC = () => {
           recipients_text: draft.recipients_text,
           min_interval: draft.min_interval,
           max_interval: draft.max_interval,
+          send_mode: draft.send_mode,
+          target_duration_minutes: draft.target_duration_minutes,
         },
       });
     } else {

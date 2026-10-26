@@ -82,6 +82,8 @@ export interface DraftMail {
   recipients_text?: string;
   min_interval?: number;
   max_interval?: number;
+  send_mode?: 'interval' | 'time_budget';
+  target_duration_minutes?: number;
   created_at: string;
   updated_at: string;
 }
@@ -120,6 +122,11 @@ export interface Campaign {
   total_count: number;
   success_count: number;
   fail_count: number;
+
+  send_mode?: 'interval' | 'time_budget'; // 控速模式：固定间隔区间 | 限定总时长匀速
+  target_duration_minutes?: number;        // 目标限时（分钟）
+  target_finish_time?: string;             // 目标结束时间戳
+  started_at?: string;                     // 任务启动时间戳
 
   min_interval: number;
   max_interval: number;

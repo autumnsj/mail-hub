@@ -114,6 +114,8 @@ export function registerIpcHandlers() {
     account_ids: number[];
     group_ids?: number[];
     recipients_text?: string;
+    send_mode?: 'interval' | 'time_budget';
+    target_duration_minutes?: number;
     min_interval: number;
     max_interval: number;
     enable_batch_rest?: boolean;
@@ -168,6 +170,13 @@ export function registerIpcHandlers() {
       total_count: recipientMap.size,
       success_count: 0,
       fail_count: 0,
+      send_mode: payload.send_mode || 'interval',
+      target_duration_minutes: payload.target_duration_minutes,
+      target_finish_time:
+        payload.send_mode === 'time_budget' && payload.target_duration_minutes
+          ? new Date(Date.now() + payload.target_duration_minutes * 60 * 1000).toISOString()
+          : undefined,
+      started_at: payload.auto_start ? new Date().toISOString() : undefined,
       min_interval: payload.min_interval || 2,
       max_interval: payload.max_interval || 5,
       enable_batch_rest: payload.enable_batch_rest,
@@ -206,6 +215,8 @@ export function registerIpcHandlers() {
   // 动态修改正在进行或已保存任务的速率与抖动配置
   ipcMain.handle('campaigns:update-config', async (_, payload: {
     id: number;
+    send_mode?: 'interval' | 'time_budget';
+    target_duration_minutes?: number;
     min_interval: number;
     max_interval: number;
     enable_batch_rest?: boolean;
@@ -214,6 +225,11 @@ export function registerIpcHandlers() {
   }) => {
     const camp = data.campaigns.find((c) => c.id === payload.id);
     if (camp) {
+      camp.send_mode = payload.send_mode || 'interval';
+      camp.target_duration_minutes = payload.target_duration_minutes;
+      if (camp.send_mode === 'time_budget' && payload.target_duration_minutes) {
+        camp.target_finish_time = new Date(Date.now() + payload.target_duration_minutes * 60 * 1000).toISOString();
+      }
       camp.min_interval = payload.min_interval;
       camp.max_interval = payload.max_interval;
       camp.enable_batch_rest = payload.enable_batch_rest;
@@ -229,6 +245,14 @@ export function registerIpcHandlers() {
   });
 
   ipcMain.handle('campaigns:start', async (_, id: number) => {
+    const camp = data.campaigns.find((c) => c.id === id);
+    if (camp && camp.send_mode === 'time_budget' && camp.target_duration_minutes) {
+      const now = Date.now();
+      if (!camp.target_finish_time || new Date(camp.target_finish_time).getTime() <= now) {
+        camp.target_finish_time = new Date(now + camp.target_duration_minutes * 60 * 1000).toISOString();
+      }
+      db.save();
+    }
     runCampaignDispatcher(id);
     return true;
   });

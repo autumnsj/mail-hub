@@ -101,6 +101,12 @@ export async function runCampaignDispatcher(campaignId: number) {
   if (!camp) return;
 
   camp.status = 'running';
+  if (!camp.started_at) {
+    camp.started_at = new Date().toISOString();
+  }
+  if (camp.send_mode === 'time_budget' && camp.target_duration_minutes && !camp.target_finish_time) {
+    camp.target_finish_time = new Date(Date.now() + camp.target_duration_minutes * 60 * 1000).toISOString();
+  }
   db.save();
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -268,13 +274,41 @@ export async function runCampaignDispatcher(campaignId: number) {
           await new Promise((r) => setTimeout(r, 1000));
         }
       } else {
-        // 单封之间的随机抖动延时 (防封抖动控制)
-        const minI = Math.max(1, camp.min_interval || 2);
-        const maxI = Math.max(minI, camp.max_interval || 5);
-        // 生成包含毫秒随机抖动的间隔
-        const jitterSec = +(minI + Math.random() * (maxI - minI)).toFixed(1);
+        let jitterSec: number;
 
-        camp.current_delay_info = `上一封已完成，随机抖动休眠 ${jitterSec} 秒后发送下一封...`;
+        if (camp.send_mode === 'time_budget' && camp.target_finish_time) {
+          // 限时匀速平摊算法
+          const pendingLogsCount = data.task_logs.filter(
+            (log) => log.campaign_id === campaignId && log.status === 'pending'
+          ).length;
+
+          if (pendingLogsCount > 0) {
+            const nowMs = Date.now();
+            const targetFinishMs = new Date(camp.target_finish_time).getTime();
+            const remainingMs = Math.max(0, targetFinishMs - nowMs);
+            const remainingSec = remainingMs / 1000;
+
+            // 单封期望基础间隔 = 剩余秒数 / 剩余封数
+            const baseInterval = Math.max(1, remainingSec / pendingLogsCount);
+            // 动态上下浮动 20% 防封防风控
+            const jitterMin = Math.max(1, +(baseInterval * 0.8).toFixed(1));
+            const jitterMax = Math.max(jitterMin + 0.2, +(baseInterval * 1.2).toFixed(1));
+            jitterSec = +(jitterMin + Math.random() * (jitterMax - jitterMin)).toFixed(1);
+
+            const remMinStr = (remainingSec / 60).toFixed(1);
+            camp.current_delay_info = `限时匀速发信中：剩余 ${pendingLogsCount} 封 / 剩余 ${remMinStr} 分钟，动态间隔休眠 ${jitterSec} 秒...`;
+          } else {
+            jitterSec = 1;
+          }
+        } else {
+          // 常规单封之间的随机抖动延时 (防封抖动控制)
+          const minI = Math.max(1, camp.min_interval || 2);
+          const maxI = Math.max(minI, camp.max_interval || 5);
+          jitterSec = +(minI + Math.random() * (maxI - minI)).toFixed(1);
+
+          camp.current_delay_info = `上一封已完成，随机抖动休眠 ${jitterSec} 秒后发送下一封...`;
+        }
+
         db.save();
 
         const sleepMs = jitterSec * 1000;
