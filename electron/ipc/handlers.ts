@@ -238,7 +238,7 @@ export function registerIpcHandlers() {
 
   // 4. 收件箱 (IMAP)
   ipcMain.handle('inbound:list', async (_, { accountId, isRead, keyword }) => {
-    return data.inbound_mails.filter((m) => {
+    let list = data.inbound_mails.filter((m) => {
       if (accountId && accountId !== 0 && m.account_id !== accountId) return false;
       if (isRead === 'unread' && m.is_read) return false;
       if (isRead === 'read' && !m.is_read) return false;
@@ -250,22 +250,30 @@ export function registerIpcHandlers() {
       }
       return true;
     });
+
+    // 严格按邮件时间从新到旧倒序排！
+    list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return list;
+  });
+
+  ipcMain.handle('inbound:get', async (_, id: number) => {
+    return data.inbound_mails.find((m) => m.id === id) || null;
   });
 
   ipcMain.handle('inbound:sync', async (_, accountId?: number) => {
-    let targets = data.accounts.filter((a) => a.enable_inbound && a.status === 'active');
+    let targets = data.accounts.filter((a) => a.enable_inbound !== false && a.status === 'active');
     if (accountId && accountId !== 0) {
       targets = targets.filter((a) => a.id === accountId);
     }
     if (targets.length === 0) {
-      throw new Error('未找到已启用收信的有效邮箱');
+      throw new Error('未找到已启用收信的有效邮箱 (请确认发件箱已启用收信功能)');
     }
 
     let totalNew = 0;
     const errors: string[] = [];
     for (const acc of targets) {
       try {
-        const cnt = await syncInbound(acc);
+        const cnt = await syncInbound(acc, 50);
         totalNew += cnt;
       } catch (err: any) {
         errors.push(`${acc.from_email}: ${err.message}`);

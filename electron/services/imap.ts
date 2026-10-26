@@ -27,6 +27,10 @@ function createImapClient(account: Account) {
     tls: {
       rejectUnauthorized: false,
     },
+    clientInfo: {
+      name: 'Thunderbird',
+      version: '115.0',
+    },
     logger: false,
   });
 }
@@ -44,7 +48,7 @@ export async function testImap(account: Account) {
   }
 }
 
-// 同步收件箱
+// 同步收件箱最新邮件
 export async function syncInbound(account: Account, limit = 30): Promise<number> {
   const client = createImapClient(account);
   try {
@@ -54,11 +58,20 @@ export async function syncInbound(account: Account, limit = 30): Promise<number>
 
     try {
       const data = db.getData();
-      // 获取最近 limit 封邮件
       const mailbox = client.mailbox;
       const totalCount = mailbox && typeof mailbox !== 'boolean' ? mailbox.exists : 0;
+
+      if (totalCount === 0) {
+        account.last_sync_at = new Date().toISOString();
+        db.save();
+        return 0;
+      }
+
+      // 正确的 IMAP 序列范围：最新的 limit 封邮件，例如 4000:*
       const startSeq = Math.max(1, totalCount - limit + 1);
-      const messages = client.fetch({ seq: `*:${startSeq}` }, {
+      const range = `${startSeq}:*`;
+
+      const messages = client.fetch(range, {
         envelope: true,
         source: true,
         uid: true,
@@ -66,7 +79,7 @@ export async function syncInbound(account: Account, limit = 30): Promise<number>
 
       for await (const msg of messages) {
         const uidStr = String(msg.uid);
-        // 避免重复入库
+        // 本地排重
         const exists = data.inbound_mails.some(
           (m) => m.account_id === account.id && m.uid === uidStr
         );
@@ -110,7 +123,8 @@ export async function syncInbound(account: Account, limit = 30): Promise<number>
           created_at: new Date().toISOString(),
         };
 
-        data.inbound_mails.push(newMail);
+        // 新邮件插入列表
+        data.inbound_mails.unshift(newMail);
         newCount++;
       }
 

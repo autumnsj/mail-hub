@@ -23,6 +23,7 @@ const api = {
 
   // Inbound
   getInboundMails: (params: any) => ipcRenderer.invoke('inbound:list', params),
+  getInboundMail: (id: number) => ipcRenderer.invoke('inbound:get', id),
   syncInboundMails: (accountId?: number) => ipcRenderer.invoke('inbound:sync', accountId),
   markInboundRead: (id: number, isRead: boolean) =>
     ipcRenderer.invoke('inbound:read', { id, isRead }),

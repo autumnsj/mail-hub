@@ -160,6 +160,7 @@ export interface ElectronAPI {
     isRead?: string;
     keyword?: string;
   }) => Promise<InboundMail[]>;
+  getInboundMail: (id: number) => Promise<InboundMail | null>;
   syncInboundMails: (accountId?: number) => Promise<{ totalNew: number; errors: string[] }>;
   markInboundRead: (id: number, isRead: boolean) => Promise<boolean>;
   deleteInboundMail: (id: number) => Promise<boolean>;

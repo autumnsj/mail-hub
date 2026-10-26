@@ -90,7 +90,12 @@ export const InboxPage: React.FC = () => {
   };
 
   const handleViewDetail = async (record: InboundMail) => {
-    setActiveMail(record);
+    try {
+      const full = await window.electronAPI.getInboundMail(record.id);
+      setActiveMail(full || record);
+    } catch {
+      setActiveMail(record);
+    }
     setDrawerOpen(true);
     if (!record.is_read) {
       await window.electronAPI.markInboundRead(record.id, true);
