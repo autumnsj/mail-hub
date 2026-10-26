@@ -66,6 +66,19 @@ const api = {
   importAccounts: (mode?: 'merge' | 'replace') => ipcRenderer.invoke('config:import-accounts', mode),
   exportBackup: () => ipcRenderer.invoke('config:export-backup'),
   importBackup: () => ipcRenderer.invoke('config:import-backup'),
+
+  // Auto Updater
+  getUpdateStatus: () => ipcRenderer.invoke('updater:get-status'),
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
+  onUpdateStatusChanged: (callback: (status: any) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('updater:status-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('updater:status-changed', listener);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

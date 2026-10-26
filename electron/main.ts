@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc/handlers';
+import { initAutoUpdater } from './services/updater';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -19,6 +20,9 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
+
+  // 初始化自动更新服务
+  initAutoUpdater(mainWindow);
 
   // 生产环境隐藏默认顶层菜单栏（保持干净的桌面视感）
   if (process.platform === 'win32') {

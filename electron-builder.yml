@@ -5,6 +5,10 @@ directories:
 files:
   - dist
   - dist-electron
+publish:
+  provider: github
+  owner: autumnsj
+  repo: mail-hub
 mac:
   target:
     - target: dmg

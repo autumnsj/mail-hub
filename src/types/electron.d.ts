@@ -251,6 +251,32 @@ export interface ElectronAPI {
   importAccounts: (mode?: 'merge' | 'replace') => Promise<{ success: boolean; count?: number }>;
   exportBackup: () => Promise<{ success: boolean; path?: string }>;
   importBackup: () => Promise<{ success: boolean }>;
+
+  getUpdateStatus: () => Promise<UpdateStatusPayload>;
+  checkForUpdates: () => Promise<UpdateStatusPayload>;
+  downloadUpdate: () => Promise<boolean>;
+  installUpdate: () => void;
+  onUpdateStatusChanged: (callback: (status: UpdateStatusPayload) => void) => () => void;
+}
+
+export interface UpdateInfo {
+  version: string;
+  releaseDate?: string;
+  releaseNotes?: string;
+  downloadUrl?: string;
+}
+
+export interface UpdateStatusPayload {
+  status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+  currentVersion: string;
+  updateInfo?: UpdateInfo;
+  progress?: {
+    percent: number;
+    transferred: number;
+    total: number;
+    bytesPerSecond: number;
+  };
+  error?: string;
 }
 
 declare global {

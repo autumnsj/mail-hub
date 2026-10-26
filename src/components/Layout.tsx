@@ -1,5 +1,5 @@
-import React from 'react';
-import { Layout as AntLayout, Menu, Typography, Badge, theme } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Layout as AntLayout, Menu, Typography, Badge, theme, Button, Space } from 'antd';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -12,7 +12,9 @@ import {
   InboxOutlined,
   EditOutlined,
   FormOutlined,
+  CloudSyncOutlined,
 } from '@ant-design/icons';
+import { UpdateModal } from './UpdateModal';
 
 const { Header, Sider, Content } = AntLayout;
 const { Title, Text } = Typography;
@@ -20,6 +22,31 @@ const { Title, Text } = Typography;
 export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [hasUpdate, setHasUpdate] = useState(false);
+  const [appVersion, setAppVersion] = useState('1.0.0');
+
+  useEffect(() => {
+    window.electronAPI.getUpdateStatus().then((s) => {
+      if (s) {
+        setAppVersion(s.currentVersion);
+        if (s.status === 'available' || s.status === 'downloaded') {
+          setHasUpdate(true);
+        }
+      }
+    });
+
+    const unsubscribe = window.electronAPI.onUpdateStatusChanged((status) => {
+      if (status.status === 'available' || status.status === 'downloaded') {
+        setHasUpdate(true);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -136,7 +163,20 @@ export const AppLayout: React.FC = () => {
           <Title level={4} style={{ margin: 0, fontWeight: 500, fontSize: 16 }}>
             {menuItems.find((item) => item.key === location.pathname)?.label || '工作台'}
           </Title>
-          <Badge status="success" text={<Text type="secondary" style={{ fontSize: 12 }}>本地离线引擎就绪</Text>} />
+          <Space size="middle" align="center">
+            <Button
+              type="text"
+              size="small"
+              icon={<CloudSyncOutlined style={{ color: hasUpdate ? '#fa8c16' : '#1677ff' }} />}
+              onClick={() => setUpdateModalOpen(true)}
+              style={{ fontSize: 12, padding: '0 8px', height: 28 }}
+            >
+              <Badge dot={hasUpdate} offset={[4, 0]}>
+                <span>{hasUpdate ? '发现新版本' : `检查更新 (v${appVersion})`}</span>
+              </Badge>
+            </Button>
+            <Badge status="success" text={<Text type="secondary" style={{ fontSize: 12 }}>本地离线引擎就绪</Text>} />
+          </Space>
         </Header>
 
         <Content
@@ -160,6 +200,7 @@ export const AppLayout: React.FC = () => {
           </div>
         </Content>
       </AntLayout>
+      <UpdateModal open={updateModalOpen} onClose={() => setUpdateModalOpen(false)} />
     </AntLayout>
   );
 };

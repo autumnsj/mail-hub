@@ -21,6 +21,7 @@
     "@tiptap/react": "^2.11.5",
     "@tiptap/starter-kit": "^2.11.5",
     "antd": "^5.17.0",
+    "electron-updater": "^6.8.11",
     "imapflow": "^1.0.168",
     "mailparser": "^3.7.1",
     "nodemailer": "^6.9.13",
