@@ -7,6 +7,8 @@ const api = {
   deleteAccount: (id: number) => ipcRenderer.invoke('accounts:delete', id),
   testSmtp: (account: any, testTo: string) => ipcRenderer.invoke('accounts:test-smtp', { account, testTo }),
   testImap: (account: any) => ipcRenderer.invoke('accounts:test-imap', account),
+  googleOAuthLogin: (payload: { clientId: string; clientSecret: string }) =>
+    ipcRenderer.invoke('accounts:google-oauth', payload),
 
   // Send
   sendSingle: (payload: any) => ipcRenderer.invoke('send:single', payload),

@@ -20,6 +20,15 @@ export interface Account {
   imap_username?: string;
   imap_password?: string;
   last_sync_at?: string;
+
+  auth_type?: 'password' | 'oauth2';
+  oauth_provider?: 'google';
+  client_id?: string;
+  client_secret?: string;
+  access_token?: string;
+  refresh_token?: string;
+  token_expires_at?: number;
+
   created_at: string;
 }
 
@@ -161,6 +170,7 @@ export interface ElectronAPI {
   deleteAccount: (id: number) => Promise<boolean>;
   testSmtp: (account: Partial<Account>, testTo: string) => Promise<any>;
   testImap: (account: Partial<Account>) => Promise<boolean>;
+  googleOAuthLogin: (payload: { clientId: string; clientSecret: string }) => Promise<Account>;
 
   sendSingle: (payload: {
     accountId: number;

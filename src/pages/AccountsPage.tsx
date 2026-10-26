@@ -25,6 +25,7 @@ import {
   SyncOutlined,
   ExportOutlined,
   ImportOutlined,
+  GoogleOutlined,
 } from '@ant-design/icons';
 import { Account } from '../types/electron';
 
@@ -38,6 +39,16 @@ export const AccountsPage: React.FC = () => {
   const [testEmail, setTestEmail] = useState('');
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [testingImap, setTestingImap] = useState(false);
+
+  // Google OAuth 状态
+  const [googleModalOpen, setGoogleModalOpen] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState(
+    () => localStorage.getItem('google_oauth_client_id') || ''
+  );
+  const [googleClientSecret, setGoogleClientSecret] = useState(
+    () => localStorage.getItem('google_oauth_client_secret') || ''
+  );
 
   const [form] = Form.useForm();
   const watchedHost = Form.useWatch('host', form);
@@ -218,13 +229,43 @@ export const AccountsPage: React.FC = () => {
     }
   };
 
+  const handleGoogleOAuthLogin = async () => {
+    if (!googleClientId.trim() || !googleClientSecret.trim()) {
+      message.warning('请输入 Google OAuth Client ID 与 Client Secret');
+      return;
+    }
+    localStorage.setItem('google_oauth_client_id', googleClientId.trim());
+    localStorage.setItem('google_oauth_client_secret', googleClientSecret.trim());
+    setGoogleLoading(true);
+    try {
+      const acc = await window.electronAPI.googleOAuthLogin({
+        clientId: googleClientId.trim(),
+        clientSecret: googleClientSecret.trim(),
+      });
+      message.success(`Google 账号授权成功: ${acc.from_email}`);
+      setGoogleModalOpen(false);
+      fetchAccounts();
+    } catch (e: any) {
+      message.error(e.message || 'Google 授权登录失败');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   const columns = [
     {
       title: '邮箱别名 / 账号',
       dataIndex: 'name',
       render: (text: string, r: Account) => (
         <div>
-          <strong>{text}</strong>
+          <Space size={6} wrap>
+            <strong>{text}</strong>
+            {r.auth_type === 'oauth2' && (
+              <Tag color="success" icon={<GoogleOutlined />}>
+                Google OAuth
+              </Tag>
+            )}
+          </Space>
           <div style={{ fontSize: 12, color: '#888' }}>
             {r.from_name ? `${r.from_name} <${r.from_email}>` : r.from_email}
           </div>
@@ -334,8 +375,15 @@ export const AccountsPage: React.FC = () => {
           <Button icon={<ImportOutlined />} onClick={handleImportAccounts}>
             导入配置 (JSON)
           </Button>
+          <Button
+            icon={<GoogleOutlined />}
+            style={{ color: '#4285f4', borderColor: '#4285f4', fontWeight: 500 }}
+            onClick={() => setGoogleModalOpen(true)}
+          >
+            Google 网页跳转授权登录
+          </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
-            添加邮箱配置
+            添加常规邮箱配置
           </Button>
         </Space>
       </div>
@@ -547,6 +595,82 @@ export const AccountsPage: React.FC = () => {
               onChange={(e) => setTestEmail(e.target.value)}
             />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={
+          <Space>
+            <GoogleOutlined style={{ color: '#4285f4' }} />
+            <span>Google 账号网页跳转一键授权登录 (OAuth 2.0)</span>
+          </Space>
+        }
+        open={googleModalOpen}
+        onCancel={() => !googleLoading && setGoogleModalOpen(false)}
+        footer={null}
+        width={650}
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="无需繁琐配置，自动打通 Gmail 发信与收件"
+          description={
+            <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+              <div>• <strong>免密码与端口</strong>：不需要手动寻找 SMTP/IMAP 端口及地址，也不需要设置 16 位应用专用密码。</div>
+              <div>• <strong>浏览器官方登录</strong>：点击下方按钮后，应用将自动调起您的默认浏览器打开 Google 官方授权页。</div>
+              <div>• <strong>安全回环回调</strong>：授权完成后自动通过本地回环回调接收并保存安全 Token，发信收信均全自动刷新鉴权。</div>
+            </div>
+          }
+        />
+
+        <div
+          style={{
+            marginBottom: 16,
+            background: '#fafafa',
+            border: '1px solid #f0f0f0',
+            borderRadius: 6,
+            padding: 12,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>如何获取 Google OAuth 客户端凭据？（仅需配置一次）</div>
+          <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6 }}>
+            1. 访问 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">Google Cloud Console 凭据页面 ↗</a> 创建或选择一个项目；<br />
+            2. 在「OAuth 同意屏幕」中将用户类型设为「外部」，并添加测试用户（您的 Gmail 邮箱）；<br />
+            3. 点击「创建凭据」→「OAuth 客户端 ID」，应用类型选择<strong>「桌面应用 (Desktop app)」</strong>；<br />
+            4. 将生成的 Client ID 与 Client Secret 复制填入下方输入框（自动保存在本地，后续随时一键授权）。
+          </div>
+        </div>
+
+        <Form layout="vertical">
+          <Form.Item label="Google Client ID" required>
+            <Input
+              placeholder="例如: xxxxxx.apps.googleusercontent.com"
+              value={googleClientId}
+              onChange={(e) => setGoogleClientId(e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="Google Client Secret" required>
+            <Input.Password
+              placeholder="例如: GOCSPX-xxxxxx"
+              value={googleClientSecret}
+              onChange={(e) => setGoogleClientSecret(e.target.value)}
+            />
+          </Form.Item>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
+            <Button onClick={() => setGoogleModalOpen(false)} disabled={googleLoading}>
+              取消
+            </Button>
+            <Button
+              type="primary"
+              icon={<GoogleOutlined />}
+              loading={googleLoading}
+              onClick={handleGoogleOAuthLogin}
+              style={{ backgroundColor: '#4285f4' }}
+            >
+              {googleLoading ? '正在等待浏览器授权完成...' : '打开浏览器跳转授权'}
+            </Button>
+          </div>
         </Form>
       </Modal>
     </div>

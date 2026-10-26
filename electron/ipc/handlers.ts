@@ -3,6 +3,7 @@ import fs from 'fs';
 import { db, Account, Contact, ContactGroup, Template, Campaign, TaskLog, SentMail, DraftMail } from '../services/db';
 import { sendSingleMail, testSmtp, runCampaignDispatcher, pauseCampaign } from '../services/mailer';
 import { testImap, syncInbound } from '../services/imap';
+import { startGoogleOAuthFlow } from '../services/google-auth';
 
 export function registerIpcHandlers() {
   const data = db.getData();
@@ -60,6 +61,64 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('accounts:test-imap', async (_, account) => {
     return await testImap(account);
+  });
+
+  // Google OAuth 2.0 网页跳转授权登录
+  ipcMain.handle('accounts:google-oauth', async (_, { clientId, clientSecret }) => {
+    const authResult = await startGoogleOAuthFlow(clientId, clientSecret);
+
+    // 检查是否已存在同名或同 email 的账号
+    let acc = data.accounts.find((a) => a.from_email.toLowerCase() === authResult.email.toLowerCase());
+    if (acc) {
+      acc.auth_type = 'oauth2';
+      acc.oauth_provider = 'google';
+      acc.client_id = clientId;
+      acc.client_secret = clientSecret;
+      acc.access_token = authResult.access_token;
+      acc.refresh_token = authResult.refresh_token;
+      acc.token_expires_at = Date.now() + (authResult.expires_in || 3600) * 1000;
+      acc.host = 'smtp.gmail.com';
+      acc.port = 465;
+      acc.use_ssl = true;
+      acc.imap_host = 'imap.gmail.com';
+      acc.imap_port = 993;
+      acc.imap_use_ssl = true;
+      acc.enable_inbound = true;
+      acc.status = 'active';
+      acc.last_error = '';
+    } else {
+      acc = {
+        id: db.getNextId('accounts'),
+        name: `Gmail (${authResult.name || authResult.email})`,
+        host: 'smtp.gmail.com',
+        port: 465,
+        username: authResult.email,
+        from_email: authResult.email,
+        from_name: authResult.name || authResult.email,
+        use_ssl: true,
+        daily_limit: 500,
+        sent_today: 0,
+        last_reset_date: new Date().toISOString().slice(0, 10),
+        status: 'active',
+        last_error: '',
+        enable_inbound: true,
+        imap_host: 'imap.gmail.com',
+        imap_port: 993,
+        imap_use_ssl: true,
+        auth_type: 'oauth2',
+        oauth_provider: 'google',
+        client_id: clientId,
+        client_secret: clientSecret,
+        access_token: authResult.access_token,
+        refresh_token: authResult.refresh_token,
+        token_expires_at: Date.now() + (authResult.expires_in || 3600) * 1000,
+        created_at: new Date().toISOString(),
+      };
+      data.accounts.push(acc);
+    }
+
+    db.save();
+    return acc;
   });
 
   // 2. 单发邮件

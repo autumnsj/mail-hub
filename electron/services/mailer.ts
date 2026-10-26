@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { db, Account, Campaign, TaskLog } from './db';
+import { getFreshGoogleAccessToken } from './google-auth';
 
 // 变量替换辅助
 export function replaceVariables(text: string, vars: Record<string, string>): string {
@@ -17,17 +18,33 @@ export function replaceVariables(text: string, vars: Record<string, string>): st
 }
 
 // 创建 nodemailer transporter
-function createTransporter(account: Account) {
+async function createTransporter(account: Account) {
   // 端口 465 采用直接 SSL/TLS (secure: true)；端口 587/25 采用 STARTTLS 协商升级 (secure: false)
   const isSecure = account.port === 465 ? true : (account.port === 587 ? false : !!account.use_ssl);
+
+  let authConfig: any;
+  if (account.auth_type === 'oauth2') {
+    const accessToken = await getFreshGoogleAccessToken(account);
+    authConfig = {
+      type: 'OAuth2',
+      user: account.from_email,
+      clientId: account.client_id,
+      clientSecret: account.client_secret,
+      refreshToken: account.refresh_token,
+      accessToken,
+    };
+  } else {
+    authConfig = {
+      user: account.username,
+      pass: account.password,
+    };
+  }
+
   return nodemailer.createTransport({
     host: account.host,
     port: account.port,
     secure: isSecure,
-    auth: {
-      user: account.username,
-      pass: account.password,
-    },
+    auth: authConfig,
     tls: {
       rejectUnauthorized: false,
     },
@@ -43,7 +60,7 @@ export async function sendSingleMail(
   subject: string,
   bodyHtml: string
 ) {
-  const transporter = createTransporter(account);
+  const transporter = await createTransporter(account);
   const from = account.from_name
     ? `"${account.from_name}" <${account.from_email}>`
     : account.from_email;

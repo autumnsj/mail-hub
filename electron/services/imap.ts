@@ -1,8 +1,9 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { db, Account, InboundMail } from './db';
+import { getFreshGoogleAccessToken } from './google-auth';
 
-function createImapClient(account: Account) {
+async function createImapClient(account: Account) {
   let host = account.imap_host;
   if (!host) {
     if (account.host.includes('qq.com')) host = 'imap.qq.com';
@@ -13,17 +14,25 @@ function createImapClient(account: Account) {
   }
 
   const port = account.imap_port || 993;
-  const user = account.imap_username || account.username;
-  const pass = account.imap_password || account.password || '';
+  let authConfig: any;
+
+  if (account.auth_type === 'oauth2') {
+    const accessToken = await getFreshGoogleAccessToken(account);
+    authConfig = {
+      user: account.from_email,
+      accessToken,
+    };
+  } else {
+    const user = account.imap_username || account.username;
+    const pass = account.imap_password || account.password || '';
+    authConfig = { user, pass };
+  }
 
   return new ImapFlow({
     host,
     port,
     secure: port === 993 || account.imap_use_ssl,
-    auth: {
-      user,
-      pass,
-    },
+    auth: authConfig,
     tls: {
       rejectUnauthorized: false,
     },
@@ -37,7 +46,7 @@ function createImapClient(account: Account) {
 
 // 测试 IMAP 登录连通性
 export async function testImap(account: Account) {
-  const client = createImapClient(account);
+  const client = await createImapClient(account);
   try {
     await client.connect();
     return true;
@@ -67,7 +76,7 @@ export async function testImap(account: Account) {
 
 // 同步收件箱最新邮件
 export async function syncInbound(account: Account, limit = 30): Promise<number> {
-  const client = createImapClient(account);
+  const client = await createImapClient(account);
   try {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX', { readOnly: true });

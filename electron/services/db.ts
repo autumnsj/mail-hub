@@ -24,6 +24,16 @@ export interface Account {
   imap_username?: string;
   imap_password?: string;
   last_sync_at?: string;
+
+  // OAuth 2.0 授权支持 (如 Google OAuth 一键跳转授权)
+  auth_type?: 'password' | 'oauth2';
+  oauth_provider?: 'google';
+  client_id?: string;
+  client_secret?: string;
+  access_token?: string;
+  refresh_token?: string;
+  token_expires_at?: number;
+
   created_at: string;
 }
 
