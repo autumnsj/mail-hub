@@ -1,6 +1,6 @@
 {
   "name": "mail-hub-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Mail Hub - 纯本地跨平台邮箱管理器桌面应用",
   "main": "dist-electron/main.js",
   "author": "Mail Hub Team",
