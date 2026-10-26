@@ -98,6 +98,10 @@ export function registerIpcHandlers() {
     recipients_text?: string;
     min_interval: number;
     max_interval: number;
+    enable_batch_rest?: boolean;
+    batch_size?: number;
+    batch_rest_sec?: number;
+    max_retries?: number;
     auto_start: boolean;
   }) => {
     const recipientMap = new Map<string, string>();
@@ -148,11 +152,15 @@ export function registerIpcHandlers() {
       fail_count: 0,
       min_interval: payload.min_interval || 2,
       max_interval: payload.max_interval || 5,
+      enable_batch_rest: payload.enable_batch_rest,
+      batch_size: payload.batch_size,
+      batch_rest_sec: payload.batch_rest_sec,
+      max_retries: payload.max_retries || 0,
       created_at: new Date().toISOString(),
     };
     data.campaigns.unshift(newCamp);
 
-    // 生成逐条发送日志
+    // 生成逐条发送日志 (严格一封一封单独投递)
     for (const [email, name] of recipientMap.entries()) {
       data.task_logs.push({
         id: db.getNextId('task_logs'),
@@ -175,6 +183,27 @@ export function registerIpcHandlers() {
     }
 
     return newCamp;
+  });
+
+  // 动态修改正在进行或已保存任务的速率与抖动配置
+  ipcMain.handle('campaigns:update-config', async (_, payload: {
+    id: number;
+    min_interval: number;
+    max_interval: number;
+    enable_batch_rest?: boolean;
+    batch_size?: number;
+    batch_rest_sec?: number;
+  }) => {
+    const camp = data.campaigns.find((c) => c.id === payload.id);
+    if (camp) {
+      camp.min_interval = payload.min_interval;
+      camp.max_interval = payload.max_interval;
+      camp.enable_batch_rest = payload.enable_batch_rest;
+      camp.batch_size = payload.batch_size;
+      camp.batch_rest_sec = payload.batch_rest_sec;
+      db.save();
+    }
+    return true;
   });
 
   ipcMain.handle('campaigns:list', async () => {

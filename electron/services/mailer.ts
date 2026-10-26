@@ -33,7 +33,7 @@ function createTransporter(account: Account) {
   });
 }
 
-// 单封发送
+// 单封完全独立的发送 (100% 独立信件，绝对不包含其他任何人的地址)
 export async function sendSingleMail(
   account: Account,
   toEmail: string,
@@ -84,10 +84,14 @@ export function pauseCampaign(campaignId: number) {
   const camp = data.campaigns.find((c) => c.id === campaignId);
   if (camp) {
     camp.status = 'paused';
+    camp.current_delay_info = '已由用户暂停';
     db.save();
   }
 }
 
+/**
+ * 核心调度引擎：群发逐封独立发送 (Round-Robin 多发件箱智能轮换 + 抖动防封控制)
+ */
 export async function runCampaignDispatcher(campaignId: number) {
   if (activeCampaigns.has(campaignId)) return;
   activeCampaigns.set(campaignId, true);
@@ -101,17 +105,22 @@ export async function runCampaignDispatcher(campaignId: number) {
 
   const todayStr = new Date().toISOString().slice(0, 10);
   let accountIndex = 0;
+  let batchSentCounter = 0; // 批次计数器
 
   try {
     while (activeCampaigns.get(campaignId)) {
-      // 提取下一条 pending 记录
+      // 提取下一封待发送记录
       const pendingLogs = data.task_logs.filter(
         (log) => log.campaign_id === campaignId && log.status === 'pending'
       );
 
+      // 全部发完，任务标记完成
       if (pendingLogs.length === 0) {
         camp.status = 'completed';
         camp.finished_at = new Date().toISOString();
+        camp.current_sending_to = '';
+        camp.current_sending_from = '';
+        camp.current_delay_info = '全部邮件已逐封发送完毕';
         db.save();
         break;
       }
@@ -125,6 +134,7 @@ export async function runCampaignDispatcher(campaignId: number) {
 
       if (usableAccounts.length === 0) {
         camp.status = 'failed';
+        camp.current_delay_info = '无可用发件箱';
         db.save();
         break;
       }
@@ -134,15 +144,15 @@ export async function runCampaignDispatcher(campaignId: number) {
         const candidate = usableAccounts[accountIndex % usableAccounts.length];
         accountIndex++;
 
-        // 跨天重置
+        // 跨天自动重置
         if (candidate.last_reset_date !== todayStr) {
           candidate.last_reset_date = todayStr;
           candidate.sent_today = 0;
         }
 
-        // 检查配额
+        // 检查单日配额
         if (candidate.daily_limit > 0 && candidate.sent_today >= candidate.daily_limit) {
-          continue;
+          continue; // 达到限额，跳到下一个
         }
 
         chosenAcc = candidate;
@@ -150,53 +160,118 @@ export async function runCampaignDispatcher(campaignId: number) {
       }
 
       if (!chosenAcc) {
-        console.warn(`[Campaign ${campaignId}] 所有勾选发件箱均已达到单日上限，自动暂停`);
         camp.status = 'paused';
+        camp.current_delay_info = '所有勾选发件箱均达到今日发送上限，任务已自动挂起';
         db.save();
         break;
       }
 
-      // 执行个性化替换与发送
+      // 执行个性化变量替换 (每一封都是独立的定制内容)
       const vars = { name: item.to_name, email: item.to_email };
       const personalizedSubject = replaceVariables(camp.subject, vars);
       const personalizedBody = replaceVariables(camp.body_html, vars);
 
+      // 实时标记正在发送的目标与使用的邮箱
       item.status = 'sending';
       item.account_id = chosenAcc.id;
       item.from_email = chosenAcc.from_email;
       item.subject = personalizedSubject;
+
+      camp.current_sending_to = item.to_email;
+      camp.current_sending_from = chosenAcc.from_email;
+      camp.current_delay_info = `正在通过 [${chosenAcc.name}] 向 ${item.to_email} 投递中...`;
       db.save();
 
-      try {
-        await sendSingleMail(
-          chosenAcc,
-          item.to_email,
-          item.to_name,
-          personalizedSubject,
-          personalizedBody
-        );
+      // 执行真实的单封独立投递
+      const maxRetries = camp.max_retries || 0;
+      let sendSuccess = false;
+      let lastErrMsg = '';
 
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          await sendSingleMail(
+            chosenAcc,
+            item.to_email,
+            item.to_name,
+            personalizedSubject,
+            personalizedBody
+          );
+          sendSuccess = true;
+          break;
+        } catch (err: any) {
+          lastErrMsg = err.message || '发送失败';
+          // 如果允许重试且还有可用账号，换下一个发件箱重试
+          if (attempt < maxRetries && usableAccounts.length > 1) {
+            const nextAcc = usableAccounts[accountIndex % usableAccounts.length];
+            accountIndex++;
+            chosenAcc = nextAcc;
+            item.account_id = chosenAcc.id;
+            item.from_email = chosenAcc.from_email;
+          }
+        }
+      }
+
+      if (sendSuccess) {
         item.status = 'success';
         item.sent_at = new Date().toISOString();
         item.error_msg = '';
         camp.success_count++;
         chosenAcc.sent_today++;
-      } catch (err: any) {
+        batchSentCounter++;
+      } else {
         item.status = 'failed';
         item.sent_at = new Date().toISOString();
-        item.error_msg = err.message || '发送失败';
+        item.error_msg = lastErrMsg;
         camp.fail_count++;
       }
       db.save();
 
-      // 防封随机延时
-      const minI = Math.max(1, camp.min_interval || 2);
-      const maxI = Math.max(minI, camp.max_interval || 5);
-      const sleepSec = Math.floor(Math.random() * (maxI - minI + 1)) + minI;
+      // 检查任务是否在发送期间被用户暂停
+      if (!activeCampaigns.get(campaignId)) break;
 
-      await new Promise((resolve) => setTimeout(resolve, sleepSec * 1000));
+      // 批次休息机制 (例如每发 10 封额外休息 30 秒)
+      if (
+        camp.enable_batch_rest &&
+        camp.batch_size &&
+        camp.batch_size > 0 &&
+        batchSentCounter >= camp.batch_size
+      ) {
+        batchSentCounter = 0;
+        const restSec = camp.batch_rest_sec || 30;
+        camp.current_delay_info = `已连续发送 ${camp.batch_size} 封，触发批次深度防封保护，休眠中 (还剩 ${restSec} 秒)...`;
+        db.save();
+
+        for (let s = restSec; s > 0; s--) {
+          if (!activeCampaigns.get(campaignId)) break;
+          camp.current_delay_info = `批次休息中，将在 ${s} 秒后继续发送下一封...`;
+          db.save();
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      } else {
+        // 单封之间的随机抖动延时 (防封抖动控制)
+        const minI = Math.max(1, camp.min_interval || 2);
+        const maxI = Math.max(minI, camp.max_interval || 5);
+        // 生成包含毫秒随机抖动的间隔
+        const jitterSec = +(minI + Math.random() * (maxI - minI)).toFixed(1);
+
+        camp.current_delay_info = `上一封已完成，随机抖动休眠 ${jitterSec} 秒后发送下一封...`;
+        db.save();
+
+        const sleepMs = jitterSec * 1000;
+        const step = 500;
+        let elapsed = 0;
+        while (elapsed < sleepMs) {
+          if (!activeCampaigns.get(campaignId)) break;
+          await new Promise((r) => setTimeout(r, Math.min(step, sleepMs - elapsed)));
+          elapsed += step;
+        }
+      }
     }
   } finally {
     activeCampaigns.delete(campaignId);
+    camp.current_sending_to = '';
+    camp.current_sending_from = '';
+    camp.current_delay_info = '';
+    db.save();
   }
 }

@@ -16,6 +16,7 @@ const api = {
   getCampaigns: () => ipcRenderer.invoke('campaigns:list'),
   startCampaign: (id: number) => ipcRenderer.invoke('campaigns:start', id),
   pauseCampaign: (id: number) => ipcRenderer.invoke('campaigns:pause', id),
+  updateCampaignConfig: (payload: any) => ipcRenderer.invoke('campaigns:update-config', payload),
   deleteCampaign: (id: number) => ipcRenderer.invoke('campaigns:delete', id),
   getCampaignLogs: (campaignId: number, status?: string) =>
     ipcRenderer.invoke('campaigns:logs', { campaignId, status }),

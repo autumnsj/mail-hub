@@ -79,8 +79,20 @@ export interface Campaign {
   total_count: number;
   success_count: number;
   fail_count: number;
-  min_interval: number;
-  max_interval: number;
+
+  // 频率与抖动防封配置
+  min_interval: number;       // 最小间隔秒数 (如 3)
+  max_interval: number;       // 最大间隔秒数 (如 8)
+  enable_batch_rest?: boolean;// 是否开启批次大休息
+  batch_size?: number;        // 每发多少封
+  batch_rest_sec?: number;    // 休息多少秒
+  max_retries?: number;       // 失败自动切换邮箱重试次数 (0~3)
+
+  // 实时发送追踪
+  current_sending_to?: string;
+  current_sending_from?: string;
+  current_delay_info?: string;
+
   created_at: string;
   finished_at?: string;
 }
@@ -95,6 +107,7 @@ export interface TaskLog {
   subject: string;
   status: 'pending' | 'sending' | 'success' | 'failed';
   error_msg: string;
+  retry_count?: number;
   sent_at?: string;
   created_at: string;
 }

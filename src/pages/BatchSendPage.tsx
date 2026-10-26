@@ -13,8 +13,10 @@ import {
   Alert,
   Divider,
   Tag,
+  Switch,
+  Tooltip,
 } from 'antd';
-import { RocketOutlined, ClusterOutlined } from '@ant-design/icons';
+import { RocketOutlined, ClusterOutlined, InfoCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { RichEditor } from '../components/RichEditor';
 import { Account, ContactGroup, Template } from '../types/electron';
@@ -29,6 +31,7 @@ export const BatchSendPage: React.FC = () => {
   const [content, setContent] = useState('<p>尊敬的 {name}：</p><p>这是发给您的专属通知内容...</p>');
   const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
+  const [enableBatchRest, setEnableBatchRest] = useState(true);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -71,12 +74,16 @@ export const BatchSendPage: React.FC = () => {
         account_ids: selectedAccounts,
         group_ids: values.group_ids || [],
         recipients_text: values.recipients || '',
-        min_interval: values.min_interval || 2,
-        max_interval: values.max_interval || 5,
+        min_interval: values.min_interval || 3,
+        max_interval: values.max_interval || 8,
+        enable_batch_rest: enableBatchRest,
+        batch_size: values.batch_size || 10,
+        batch_rest_sec: values.batch_rest_sec || 30,
+        max_retries: values.max_retries || 1,
         auto_start: autoStart,
       });
 
-      message.success(autoStart ? '任务创建成功并已开始分发！' : '批量任务已保存为草稿！');
+      message.success(autoStart ? '任务创建成功并已开始逐封发送！' : '批量任务已保存为草稿！');
       navigate('/tasks');
     } catch (e: any) {
       message.error(e.message || '创建任务失败');
@@ -89,31 +96,43 @@ export const BatchSendPage: React.FC = () => {
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
       <div style={{ marginBottom: 16 }}>
         <Title level={3} style={{ marginBottom: 4 }}>
-          多邮箱分摊群发 (智能轮询)
+          多邮箱分摊群发 (逐封独立投递)
         </Title>
         <Paragraph type="secondary">
-          勾选多个发件箱，系统将按轮询（Round-Robin）分摊机制均衡打散发送，智能隔离风控。
+          系统严格采用 1 对 1 独立信件发出，每次只填写单一收件人，收件人彼此完全不可见。
         </Paragraph>
       </div>
+
+      <Alert
+        type="success"
+        showIcon
+        icon={<SafetyCertificateOutlined />}
+        style={{ marginBottom: 16 }}
+        message="逐封发送与防风控机制保障"
+        description="勾选多个发件箱后，系统将自动采用轮询算法轮流调用发件箱，在每一封发送之间加入您配置的随机浮动抖动，避免短时间内被 QQ/163/Gmail 拦截。"
+      />
 
       <Card>
         <Form
           form={form}
           layout="vertical"
           initialValues={{
-            min_interval: 2,
-            max_interval: 5,
+            min_interval: 3,
+            max_interval: 8,
+            batch_size: 10,
+            batch_rest_sec: 30,
+            max_retries: 1,
           }}
         >
           <Form.Item
             name="title"
-            label="任务名称"
+            label="群发任务名称"
             rules={[{ required: true, message: '请输入任务名称' }]}
           >
             <Input placeholder="如：2026年第四季度客户产品服务通知" />
           </Form.Item>
 
-          {/* 重点：多发件箱选择与分摊说明 */}
+          {/* 参与分摊的发件箱 */}
           <Card
             type="inner"
             title={
@@ -163,19 +182,91 @@ export const BatchSendPage: React.FC = () => {
                     ))}
                   </Space>
                 </Checkbox.Group>
-
-                <Alert
-                  type="info"
-                  showIcon
-                  style={{ marginTop: 12 }}
-                  message={`已选中 ${selectedAccounts.length} 个发件邮箱。发信时系统将自动依次轮换发件账号。如果某一账号达单日限额，将无感切换至下一可用账号。`}
-                />
+                <div style={{ marginTop: 8, fontSize: 12, color: '#888' }}>
+                  已选中 {selectedAccounts.length} 个发件邮箱。发信时将自动依次轮流使用每个账号投递单封邮件。
+                </div>
               </div>
             )}
           </Card>
 
+          {/* 核心需求：防封抖动与频率深度配置 */}
+          <Card
+            type="inner"
+            title={
+              <Space>
+                <span>发信间隔与随机抖动参数配置</span>
+                <Tooltip title="配置每封邮件发出后的停顿时间。加入随机浮动可打破机械规律，有效防范被判定为机器脚本">
+                  <InfoCircleOutlined style={{ color: '#888' }} />
+                </Tooltip>
+              </Space>
+            }
+            style={{ marginBottom: 18 }}
+          >
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 500, marginBottom: 8 }}>单封发送间隔随机抖动范围：</div>
+              <Space align="center" size="middle" wrap>
+                <span>最短间隔：</span>
+                <Form.Item name="min_interval" noStyle rules={[{ required: true }]}>
+                  <InputNumber min={1} max={60} addonAfter="秒" />
+                </Form.Item>
+                <span>至 最长间隔：</span>
+                <Form.Item name="max_interval" noStyle rules={[{ required: true }]}>
+                  <InputNumber min={1} max={180} addonAfter="秒" />
+                </Form.Item>
+                <span style={{ color: '#888', fontSize: 13 }}>
+                  (系统将在该区间内生成随机小数延时，如 4.3秒、6.1秒，模拟人工手点)
+                </span>
+              </Space>
+            </div>
+
+            <Divider style={{ margin: '14px 0' }} />
+
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div>
+                  <strong>连续发送批次深度防封 (大休眠保护)</strong>
+                  <div style={{ fontSize: 12, color: '#888' }}>
+                    每连续发送一定数量后，强制大幅停顿一段时间，避免触发邮件服务商的每小时峰值限制
+                  </div>
+                </div>
+                <Switch
+                  checked={enableBatchRest}
+                  onChange={setEnableBatchRest}
+                  checkedChildren="已启用"
+                  unCheckedChildren="关闭"
+                />
+              </div>
+
+              {enableBatchRest && (
+                <Space align="center" size="middle" style={{ marginTop: 6 }} wrap>
+                  <span>每连续发送</span>
+                  <Form.Item name="batch_size" noStyle>
+                    <InputNumber min={2} max={500} addonAfter="封" />
+                  </Form.Item>
+                  <span>邮件，额外休眠休息</span>
+                  <Form.Item name="batch_rest_sec" noStyle>
+                    <InputNumber min={5} max={3600} addonAfter="秒" />
+                  </Form.Item>
+                </Space>
+              )}
+            </div>
+
+            <Divider style={{ margin: '14px 0' }} />
+
+            <Space align="center">
+              <span>单封发送失败时，自动切换下一发件箱重试：</span>
+              <Form.Item name="max_retries" noStyle>
+                <Select style={{ width: 130 }}>
+                  <Select.Option value={0}>不重试</Select.Option>
+                  <Select.Option value={1}>换箱重试 1 次</Select.Option>
+                  <Select.Option value={2}>换箱重试 2 次</Select.Option>
+                </Select>
+              </Form.Item>
+            </Space>
+          </Card>
+
           {/* 收件人配置 */}
-          <Card type="inner" title="目标收件人设置" style={{ marginBottom: 18 }}>
+          <Card type="inner" title="目标收件人设置 (逐封单独投递)" style={{ marginBottom: 18 }}>
             <Form.Item name="group_ids" label="从已有联系人群组选取">
               <Select mode="multiple" placeholder="请选择群组 (可多选)" allowClear>
                 {groups.map((g) => (
@@ -189,7 +280,7 @@ export const BatchSendPage: React.FC = () => {
             <Form.Item
               name="recipients"
               label="或直接大文本粘贴收件人 (支持一行一个邮箱，或 姓名,邮箱 格式)"
-              extra="系统自动提取邮箱与姓名并排重清洗"
+              extra="系统将自动解析每行收件人，发送时逐个独立生成单封信件"
             >
               <Input.TextArea
                 rows={4}
@@ -198,23 +289,7 @@ export const BatchSendPage: React.FC = () => {
             </Form.Item>
           </Card>
 
-          {/* 防风控延时设置 */}
-          <Card type="inner" title="发送频率防封保护 (发送间隔抖动)" style={{ marginBottom: 18 }}>
-            <Space align="center" size="middle">
-              <span>每封邮件随机延时：</span>
-              <Form.Item name="min_interval" noStyle>
-                <InputNumber min={1} max={60} addonAfter="秒" />
-              </Form.Item>
-              <span>至</span>
-              <Form.Item name="max_interval" noStyle>
-                <InputNumber min={1} max={120} addonAfter="秒" />
-              </Form.Item>
-              <span style={{ color: '#888', fontSize: 13 }}>
-                (建议保留 2~5 秒间隔，模拟真人发信规律)
-              </span>
-            </Space>
-          </Card>
-
+          {/* 邮件正文编辑 */}
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <Form.Item
               name="subject"
@@ -259,7 +334,7 @@ export const BatchSendPage: React.FC = () => {
               loading={loading}
               onClick={() => handleSubmit(true)}
             >
-              立即创建并开始分摊群发
+              立即创建并开始逐封分摊发送
             </Button>
           </div>
         </Form>

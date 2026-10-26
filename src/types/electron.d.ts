@@ -78,6 +78,13 @@ export interface Campaign {
   fail_count: number;
   min_interval: number;
   max_interval: number;
+  enable_batch_rest?: boolean;
+  batch_size?: number;
+  batch_rest_sec?: number;
+  max_retries?: number;
+  current_sending_to?: string;
+  current_sending_from?: string;
+  current_delay_info?: string;
   created_at: string;
   finished_at?: string;
 }
@@ -128,11 +135,23 @@ export interface ElectronAPI {
     recipients_text?: string;
     min_interval: number;
     max_interval: number;
+    enable_batch_rest?: boolean;
+    batch_size?: number;
+    batch_rest_sec?: number;
+    max_retries?: number;
     auto_start: boolean;
   }) => Promise<Campaign>;
   getCampaigns: () => Promise<Campaign[]>;
   startCampaign: (id: number) => Promise<boolean>;
   pauseCampaign: (id: number) => Promise<boolean>;
+  updateCampaignConfig: (payload: {
+    id: number;
+    min_interval: number;
+    max_interval: number;
+    enable_batch_rest?: boolean;
+    batch_size?: number;
+    batch_rest_sec?: number;
+  }) => Promise<boolean>;
   deleteCampaign: (id: number) => Promise<boolean>;
   getCampaignLogs: (campaignId: number, status?: string) => Promise<TaskLog[]>;
 
