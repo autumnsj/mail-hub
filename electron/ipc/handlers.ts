@@ -69,7 +69,7 @@ export function registerIpcHandlers() {
 
     await sendSingleMail(acc, toEmail, toName, subject, bodyHtml);
 
-    // 记录单发日志
+    // 记录单发任务流水与已发送发件箱归档
     const logItem: TaskLog = {
       id: db.getNextId('task_logs'),
       campaign_id: 0,
@@ -84,6 +84,23 @@ export function registerIpcHandlers() {
       created_at: new Date().toISOString(),
     };
     data.task_logs.push(logItem);
+
+    // 归档到已发送邮件 (发件箱)
+    data.sent_mails.unshift({
+      id: db.getNextId('sent_mails'),
+      account_id: acc.id,
+      account_name: acc.name,
+      from_email: acc.from_email,
+      to_email: toEmail,
+      to_name: toName || '',
+      subject,
+      body_html: bodyHtml,
+      sent_type: 'single',
+      status: 'success',
+      sent_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    });
+
     acc.sent_today++;
     db.save();
     return true;
@@ -299,6 +316,68 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('inbound:delete', async (_, id: number) => {
     data.inbound_mails = data.inbound_mails.filter((m) => m.id !== id);
+    db.save();
+    return true;
+  });
+
+  // 4.1 发件箱 (已发送邮件 Sent Mails)
+  ipcMain.handle('sent:list', async (_, params: {
+    accountId?: number;
+    sentType?: 'all' | 'single' | 'campaign';
+    status?: 'all' | 'success' | 'failed';
+    keyword?: string;
+  } = {}) => {
+    const { accountId, sentType, status, keyword } = params;
+    let list = (data.sent_mails || []).filter((m) => {
+      if (accountId && accountId !== 0 && m.account_id !== accountId) return false;
+      if (sentType && sentType !== 'all' && m.sent_type !== sentType) return false;
+      if (status && status !== 'all' && m.status !== status) return false;
+      if (keyword) {
+        const kw = keyword.toLowerCase().trim();
+        const sub = (m.subject || '').toLowerCase();
+        const to = (m.to_email || '').toLowerCase();
+        const toName = (m.to_name || '').toLowerCase();
+        const from = (m.from_email || '').toLowerCase();
+        const camp = (m.campaign_title || '').toLowerCase();
+        if (
+          !sub.includes(kw) &&
+          !to.includes(kw) &&
+          !toName.includes(kw) &&
+          !from.includes(kw) &&
+          !camp.includes(kw)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    // 倒序排列（最新发送的在前）
+    list.sort((a, b) => new Date(b.sent_at || b.created_at).getTime() - new Date(a.sent_at || a.created_at).getTime());
+    return list;
+  });
+
+  ipcMain.handle('sent:get', async (_, id: number) => {
+    return (data.sent_mails || []).find((m) => m.id === id) || null;
+  });
+
+  ipcMain.handle('sent:delete', async (_, id: number) => {
+    data.sent_mails = (data.sent_mails || []).filter((m) => m.id !== id);
+    db.save();
+    return true;
+  });
+
+  ipcMain.handle('sent:clear', async (_, params: { accountId?: number; status?: string } = {}) => {
+    const { accountId, status } = params;
+    if (accountId || status) {
+      data.sent_mails = (data.sent_mails || []).filter((m) => {
+        if (accountId && m.account_id === accountId) return false;
+        if (status && m.status === status) return false;
+        return true;
+      });
+    } else {
+      data.sent_mails = [];
+    }
     db.save();
     return true;
   });
@@ -565,6 +644,7 @@ export function registerIpcHandlers() {
       groups: data.groups,
       contacts: data.contacts,
       templates: data.templates,
+      sent_mails: data.sent_mails || [],
       backup_time: new Date().toISOString(),
     };
 
@@ -593,6 +673,7 @@ export function registerIpcHandlers() {
       if (Array.isArray(backup.groups)) data.groups = backup.groups;
       if (Array.isArray(backup.contacts)) data.contacts = backup.contacts;
       if (Array.isArray(backup.templates)) data.templates = backup.templates;
+      if (Array.isArray(backup.sent_mails)) data.sent_mails = backup.sent_mails;
 
       db.save();
       return { success: true };

@@ -29,6 +29,12 @@ const api = {
     ipcRenderer.invoke('inbound:read', { id, isRead }),
   deleteInboundMail: (id: number) => ipcRenderer.invoke('inbound:delete', id),
 
+  // Sent Mails (发件箱)
+  getSentMails: (params?: any) => ipcRenderer.invoke('sent:list', params),
+  getSentMail: (id: number) => ipcRenderer.invoke('sent:get', id),
+  deleteSentMail: (id: number) => ipcRenderer.invoke('sent:delete', id),
+  clearSentMails: (params?: any) => ipcRenderer.invoke('sent:clear', params),
+
   // Contacts & Groups
   getGroups: () => ipcRenderer.invoke('groups:list'),
   saveGroup: (group: any) => ipcRenderer.invoke('groups:save', group),

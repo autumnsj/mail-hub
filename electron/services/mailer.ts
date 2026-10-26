@@ -224,6 +224,26 @@ export async function runCampaignDispatcher(campaignId: number) {
         item.error_msg = lastErrMsg;
         camp.fail_count++;
       }
+
+      // 实时归档到「已发送 / 发件箱」列表
+      data.sent_mails.unshift({
+        id: db.getNextId('sent_mails'),
+        account_id: chosenAcc.id,
+        account_name: chosenAcc.name,
+        from_email: chosenAcc.from_email,
+        to_email: item.to_email,
+        to_name: item.to_name,
+        subject: personalizedSubject,
+        body_html: personalizedBody,
+        sent_type: 'campaign',
+        campaign_id: camp.id,
+        campaign_title: camp.title,
+        status: sendSuccess ? 'success' : 'failed',
+        error_msg: sendSuccess ? '' : lastErrMsg,
+        sent_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      });
+
       db.save();
 
       // 检查任务是否在发送期间被用户暂停

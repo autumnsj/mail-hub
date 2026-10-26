@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Form, Input, Button, Select, Space, message, Card, Typography, Divider } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 import { RichEditor } from '../components/RichEditor';
@@ -7,6 +8,7 @@ import { Account, Template } from '../types/electron';
 const { Title, Paragraph } = Typography;
 
 export const SingleSendPage: React.FC = () => {
+  const location = useLocation();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [content, setContent] = useState('<p>您好，这是一封重要邮件通知。</p>');
@@ -21,6 +23,24 @@ export const SingleSendPage: React.FC = () => {
       setTemplates(res || []);
     });
   }, []);
+
+  useEffect(() => {
+    if (location.state) {
+      const state = location.state as {
+        toEmail?: string;
+        toName?: string;
+        subject?: string;
+        bodyHtml?: string;
+        accountId?: number;
+      };
+      if (state.toEmail) form.setFieldValue('to_email', state.toEmail);
+      if (state.toName) form.setFieldValue('to_name', state.toName);
+      if (state.subject) form.setFieldValue('subject', state.subject);
+      if (state.accountId) form.setFieldValue('account_id', state.accountId);
+      if (state.bodyHtml) setContent(state.bodyHtml);
+      message.info('已载入所选已发邮件的内容与收件人');
+    }
+  }, [location.state]);
 
   const handleApplyTemplate = (tplId: number) => {
     const tpl = templates.find((t) => t.id === tplId);

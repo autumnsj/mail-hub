@@ -45,6 +45,25 @@ export interface InboundMail {
   created_at: string;
 }
 
+// 已发邮件 (发件箱) 记录
+export interface SentMail {
+  id: number;
+  account_id: number;
+  account_name: string;
+  from_email: string;
+  to_email: string;
+  to_name: string;
+  subject: string;
+  body_html: string;
+  sent_type: 'single' | 'campaign'; // 单发还是群发
+  campaign_id?: number;
+  campaign_title?: string;
+  status: 'success' | 'failed';
+  error_msg?: string;
+  sent_at: string;
+  created_at: string;
+}
+
 export interface ContactGroup {
   id: number;
   name: string;
@@ -80,15 +99,13 @@ export interface Campaign {
   success_count: number;
   fail_count: number;
 
-  // 频率与抖动防封配置
-  min_interval: number;       // 最小间隔秒数 (如 3)
-  max_interval: number;       // 最大间隔秒数 (如 8)
-  enable_batch_rest?: boolean;// 是否开启批次大休息
-  batch_size?: number;        // 每发多少封
-  batch_rest_sec?: number;    // 休息多少秒
-  max_retries?: number;       // 失败自动切换邮箱重试次数 (0~3)
+  min_interval: number;
+  max_interval: number;
+  enable_batch_rest?: boolean;
+  batch_size?: number;
+  batch_rest_sec?: number;
+  max_retries?: number;
 
-  // 实时发送追踪
   current_sending_to?: string;
   current_sending_from?: string;
   current_delay_info?: string;
@@ -115,6 +132,7 @@ export interface TaskLog {
 interface DatabaseSchema {
   accounts: Account[];
   inbound_mails: InboundMail[];
+  sent_mails: SentMail[]; // 已发送邮件
   groups: ContactGroup[];
   contacts: Contact[];
   templates: Template[];
@@ -149,7 +167,9 @@ class LocalDatabase {
     if (fs.existsSync(this.filePath)) {
       try {
         const content = fs.readFileSync(this.filePath, 'utf-8');
-        return JSON.parse(content);
+        const parsed = JSON.parse(content);
+        if (!parsed.sent_mails) parsed.sent_mails = [];
+        return parsed;
       } catch (e) {
         console.error('加载本地数据库异常，重置新结构:', e);
       }
@@ -157,6 +177,7 @@ class LocalDatabase {
     const defaultData: DatabaseSchema = {
       accounts: [],
       inbound_mails: [],
+      sent_mails: [],
       groups: [],
       contacts: [],
       templates: [],
@@ -165,6 +186,7 @@ class LocalDatabase {
       next_id: {
         accounts: 1,
         inbound_mails: 1,
+        sent_mails: 1,
         groups: 1,
         contacts: 1,
         templates: 1,
@@ -182,8 +204,7 @@ class LocalDatabase {
     try {
       fs.writeFileSync(tempPath, JSON.stringify(this.data, null, 2), 'utf-8');
       fs.renameSync(tempPath, this.filePath);
-    } catch (err) {
-      // 容错回退：直接写入
+    } catch {
       fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
     }
   }
@@ -198,6 +219,9 @@ class LocalDatabase {
   }
 
   public getData(): DatabaseSchema {
+    if (!this.data.sent_mails) {
+      this.data.sent_mails = [];
+    }
     return this.data;
   }
 }

@@ -41,6 +41,24 @@ export interface InboundMail {
   created_at: string;
 }
 
+export interface SentMail {
+  id: number;
+  account_id: number;
+  account_name: string;
+  from_email: string;
+  to_email: string;
+  to_name: string;
+  subject: string;
+  body_html: string;
+  sent_type: 'single' | 'campaign';
+  campaign_id?: number;
+  campaign_title?: string;
+  status: 'success' | 'failed';
+  error_msg?: string;
+  sent_at: string;
+  created_at: string;
+}
+
 export interface ContactGroup {
   id: number;
   name: string;
@@ -164,6 +182,16 @@ export interface ElectronAPI {
   syncInboundMails: (accountId?: number) => Promise<{ totalNew: number; errors: string[] }>;
   markInboundRead: (id: number, isRead: boolean) => Promise<boolean>;
   deleteInboundMail: (id: number) => Promise<boolean>;
+
+  getSentMails: (params?: {
+    accountId?: number;
+    sentType?: 'all' | 'single' | 'campaign';
+    status?: 'all' | 'success' | 'failed';
+    keyword?: string;
+  }) => Promise<SentMail[]>;
+  getSentMail: (id: number) => Promise<SentMail | null>;
+  deleteSentMail: (id: number) => Promise<boolean>;
+  clearSentMails: (params?: { accountId?: number; status?: string }) => Promise<boolean>;
 
   getGroups: () => Promise<ContactGroup[]>;
   saveGroup: (group: Partial<ContactGroup>) => Promise<ContactGroup>;

@@ -103,7 +103,10 @@ export const DashboardPage: React.FC = () => {
           >
             发起多邮箱分摊群发
           </Button>
-          <Button icon={<SendOutlined />} size="middle" onClick={() => navigate('/send/single')}>
+          <Button icon={<SendOutlined />} size="middle" onClick={() => navigate('/sent')}>
+            发件箱 (已发邮件)
+          </Button>
+          <Button size="middle" onClick={() => navigate('/send/single')}>
             单封即时发送
           </Button>
         </Space>
