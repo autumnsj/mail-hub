@@ -16,8 +16,8 @@ import {
   Switch,
   Tooltip,
 } from 'antd';
-import { RocketOutlined, ClusterOutlined, InfoCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { RocketOutlined, ClusterOutlined, InfoCircleOutlined, SafetyCertificateOutlined, SaveOutlined } from '@ant-design/icons';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { RichEditor } from '../components/RichEditor';
 import { Account, ContactGroup, Template } from '../types/electron';
 
@@ -25,12 +25,15 @@ const { Title, Paragraph } = Typography;
 
 export const BatchSendPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [content, setContent] = useState('<p>尊敬的 {name}：</p><p>这是发给您的专属通知内容...</p>');
   const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftId, setDraftId] = useState<number | null>(null);
   const [enableBatchRest, setEnableBatchRest] = useState(true);
   const [form] = Form.useForm();
 
@@ -45,12 +48,66 @@ export const BatchSendPage: React.FC = () => {
     window.electronAPI.getTemplates().then((res) => setTemplates(res || []));
   }, []);
 
+  useEffect(() => {
+    if (location.state) {
+      const state = location.state as {
+        draftId?: number;
+        title?: string;
+        subject?: string;
+        bodyHtml?: string;
+        account_ids?: number[];
+        group_ids?: number[];
+        recipients_text?: string;
+        min_interval?: number;
+        max_interval?: number;
+      };
+      if (state.draftId) setDraftId(state.draftId);
+      if (state.title) form.setFieldValue('title', state.title);
+      if (state.subject) form.setFieldValue('subject', state.subject);
+      if (state.bodyHtml) setContent(state.bodyHtml);
+      if (state.account_ids && state.account_ids.length > 0) {
+        setSelectedAccounts(state.account_ids);
+        form.setFieldValue('account_ids', state.account_ids);
+      }
+      if (state.group_ids) form.setFieldValue('group_ids', state.group_ids);
+      if (state.recipients_text) form.setFieldValue('recipients', state.recipients_text);
+      if (state.min_interval) form.setFieldValue('min_interval', state.min_interval);
+      if (state.max_interval) form.setFieldValue('max_interval', state.max_interval);
+      message.info('已从草稿箱载入群发配置');
+    }
+  }, [location.state]);
+
   const handleApplyTemplate = (tplId: number) => {
     const tpl = templates.find((t) => t.id === tplId);
     if (tpl) {
       form.setFieldsValue({ subject: tpl.subject });
       setContent(tpl.body_html);
       message.info(`已载入模板: ${tpl.title}`);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    try {
+      setSavingDraft(true);
+      const values = form.getFieldsValue();
+      const res = await window.electronAPI.saveDraft({
+        id: draftId || undefined,
+        title: values.title || '（未命名群发任务）',
+        subject: values.subject || '（未命名主题）',
+        body_html: content,
+        account_ids: selectedAccounts,
+        group_ids: values.group_ids || [],
+        recipients_text: values.recipients || '',
+        min_interval: values.min_interval || 3,
+        max_interval: values.max_interval || 8,
+        draft_type: 'campaign',
+      });
+      if (res && res.id) setDraftId(res.id);
+      message.success('群发配置已保存至草稿箱！');
+    } catch (e: any) {
+      message.error(e.message || '保存草稿失败');
+    } finally {
+      setSavingDraft(false);
     }
   };
 
@@ -83,7 +140,16 @@ export const BatchSendPage: React.FC = () => {
         auto_start: autoStart,
       });
 
-      message.success(autoStart ? '任务创建成功并已开始逐封发送！' : '批量任务已保存为草稿！');
+      if (draftId) {
+        try {
+          await window.electronAPI.deleteDraft(draftId);
+          setDraftId(null);
+        } catch {
+          // ignore
+        }
+      }
+
+      message.success(autoStart ? '任务创建成功并已开始逐封发送！' : '批量任务已保存！');
       navigate('/tasks');
     } catch (e: any) {
       message.error(e.message || '创建任务失败');
@@ -324,8 +390,13 @@ export const BatchSendPage: React.FC = () => {
           <Divider />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-            <Button size="large" loading={loading} onClick={() => handleSubmit(false)}>
-              保存为草稿
+            <Button
+              size="large"
+              icon={<SaveOutlined />}
+              loading={savingDraft}
+              onClick={handleSaveDraft}
+            >
+              存为群发草稿
             </Button>
             <Button
               type="primary"

@@ -35,6 +35,13 @@ const api = {
   deleteSentMail: (id: number) => ipcRenderer.invoke('sent:delete', id),
   clearSentMails: (params?: any) => ipcRenderer.invoke('sent:clear', params),
 
+  // Drafts (草稿箱)
+  getDrafts: (params?: any) => ipcRenderer.invoke('drafts:list', params),
+  getDraft: (id: number) => ipcRenderer.invoke('drafts:get', id),
+  saveDraft: (draft: any) => ipcRenderer.invoke('drafts:save', draft),
+  deleteDraft: (id: number) => ipcRenderer.invoke('drafts:delete', id),
+  clearDrafts: (params?: any) => ipcRenderer.invoke('drafts:clear', params),
+
   // Contacts & Groups
   getGroups: () => ipcRenderer.invoke('groups:list'),
   saveGroup: (group: any) => ipcRenderer.invoke('groups:save', group),

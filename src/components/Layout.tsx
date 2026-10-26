@@ -11,6 +11,7 @@ import {
   FileTextOutlined,
   InboxOutlined,
   EditOutlined,
+  FormOutlined,
 } from '@ant-design/icons';
 
 const { Header, Sider, Content } = AntLayout;
@@ -43,6 +44,11 @@ export const AppLayout: React.FC = () => {
       key: '/sent',
       icon: <SendOutlined />,
       label: '发件箱 (已发送邮件)',
+    },
+    {
+      key: '/drafts',
+      icon: <FormOutlined />,
+      label: '草稿箱 (邮件草稿)',
     },
     {
       key: '/send/single',

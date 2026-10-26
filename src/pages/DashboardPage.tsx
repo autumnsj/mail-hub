@@ -8,6 +8,7 @@ import {
   ClusterOutlined,
   ExportOutlined,
   ImportOutlined,
+  FormOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { SystemStats, Campaign } from '../types/electron';
@@ -104,7 +105,10 @@ export const DashboardPage: React.FC = () => {
             发起多邮箱分摊群发
           </Button>
           <Button icon={<SendOutlined />} size="middle" onClick={() => navigate('/sent')}>
-            发件箱 (已发邮件)
+            发件箱
+          </Button>
+          <Button icon={<FormOutlined />} size="middle" onClick={() => navigate('/drafts')}>
+            草稿箱
           </Button>
           <Button size="middle" onClick={() => navigate('/send/single')}>
             单封即时发送

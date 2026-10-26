@@ -59,6 +59,26 @@ export interface SentMail {
   created_at: string;
 }
 
+export interface DraftMail {
+  id: number;
+  account_id?: number;
+  account_name?: string;
+  from_email?: string;
+  to_email?: string;
+  to_name?: string;
+  subject?: string;
+  body_html?: string;
+  draft_type: 'single' | 'campaign';
+  title?: string;
+  account_ids?: number[];
+  group_ids?: number[];
+  recipients_text?: string;
+  min_interval?: number;
+  max_interval?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ContactGroup {
   id: number;
   name: string;
@@ -192,6 +212,15 @@ export interface ElectronAPI {
   getSentMail: (id: number) => Promise<SentMail | null>;
   deleteSentMail: (id: number) => Promise<boolean>;
   clearSentMails: (params?: { accountId?: number; status?: string }) => Promise<boolean>;
+
+  getDrafts: (params?: {
+    draftType?: 'all' | 'single' | 'campaign';
+    keyword?: string;
+  }) => Promise<DraftMail[]>;
+  getDraft: (id: number) => Promise<DraftMail | null>;
+  saveDraft: (draft: Partial<DraftMail>) => Promise<DraftMail>;
+  deleteDraft: (id: number) => Promise<boolean>;
+  clearDrafts: (params?: { draftType?: string }) => Promise<boolean>;
 
   getGroups: () => Promise<ContactGroup[]>;
   saveGroup: (group: Partial<ContactGroup>) => Promise<ContactGroup>;

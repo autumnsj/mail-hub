@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Form, Input, Button, Select, Space, message, Card, Typography, Divider } from 'antd';
-import { SendOutlined } from '@ant-design/icons';
+import { SendOutlined, SaveOutlined } from '@ant-design/icons';
 import { RichEditor } from '../components/RichEditor';
 import { Account, Template } from '../types/electron';
 
@@ -13,6 +13,8 @@ export const SingleSendPage: React.FC = () => {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [content, setContent] = useState('<p>您好，这是一封重要邮件通知。</p>');
   const [loading, setLoading] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftId, setDraftId] = useState<number | null>(null);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -32,13 +34,19 @@ export const SingleSendPage: React.FC = () => {
         subject?: string;
         bodyHtml?: string;
         accountId?: number;
+        draftId?: number;
       };
       if (state.toEmail) form.setFieldValue('to_email', state.toEmail);
       if (state.toName) form.setFieldValue('to_name', state.toName);
       if (state.subject) form.setFieldValue('subject', state.subject);
       if (state.accountId) form.setFieldValue('account_id', state.accountId);
       if (state.bodyHtml) setContent(state.bodyHtml);
-      message.info('已载入所选已发邮件的内容与收件人');
+      if (state.draftId) {
+        setDraftId(state.draftId);
+        message.info('已载入草稿内容，编辑后可直接发送或更新草稿');
+      } else {
+        message.info('已载入所选已发邮件的内容与收件人');
+      }
     }
   }, [location.state]);
 
@@ -48,6 +56,33 @@ export const SingleSendPage: React.FC = () => {
       form.setFieldsValue({ subject: tpl.subject });
       setContent(tpl.body_html);
       message.info(`已应用模板: ${tpl.title}`);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    try {
+      setSavingDraft(true);
+      const values = form.getFieldsValue();
+      const currentAcc = accounts.find((a) => a.id === values.account_id);
+      const res = await window.electronAPI.saveDraft({
+        id: draftId || undefined,
+        account_id: values.account_id,
+        account_name: currentAcc?.name,
+        from_email: currentAcc?.from_email,
+        to_email: values.to_email,
+        to_name: values.to_name,
+        subject: values.subject || '（未命名草稿）',
+        body_html: content,
+        draft_type: 'single',
+      });
+      if (res && res.id) {
+        setDraftId(res.id);
+      }
+      message.success('邮件已成功保存至草稿箱！');
+    } catch (e: any) {
+      message.error(e.message || '保存草稿失败');
+    } finally {
+      setSavingDraft(false);
     }
   };
 
@@ -68,7 +103,17 @@ export const SingleSendPage: React.FC = () => {
         bodyHtml: content,
       });
 
-      message.success('邮件已成功发送！');
+      // 若发送自草稿，发送成功后自动从草稿箱中移除该草稿
+      if (draftId) {
+        try {
+          await window.electronAPI.deleteDraft(draftId);
+          setDraftId(null);
+        } catch {
+          // ignore
+        }
+      }
+
+      message.success('邮件已成功发送！已归档到发件箱');
       form.resetFields(['to_email', 'to_name']);
     } catch (e: any) {
       message.error(e.message || '发送失败');
@@ -154,7 +199,15 @@ export const SingleSendPage: React.FC = () => {
 
           <Divider />
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+            <Button
+              size="large"
+              icon={<SaveOutlined />}
+              loading={savingDraft}
+              onClick={handleSaveDraft}
+            >
+              存为草稿
+            </Button>
             <Button
               type="primary"
               size="large"

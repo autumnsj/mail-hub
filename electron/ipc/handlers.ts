@@ -1,6 +1,6 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'fs';
-import { db, Account, Contact, ContactGroup, Template, Campaign, TaskLog } from '../services/db';
+import { db, Account, Contact, ContactGroup, Template, Campaign, TaskLog, SentMail, DraftMail } from '../services/db';
 import { sendSingleMail, testSmtp, runCampaignDispatcher, pauseCampaign } from '../services/mailer';
 import { testImap, syncInbound } from '../services/imap';
 
@@ -382,6 +382,89 @@ export function registerIpcHandlers() {
     return true;
   });
 
+  // 4.2 草稿箱 (Drafts)
+  ipcMain.handle('drafts:list', async (_, params: {
+    draftType?: 'all' | 'single' | 'campaign';
+    keyword?: string;
+  } = {}) => {
+    const { draftType, keyword } = params;
+    let list = (data.drafts || []).filter((d) => {
+      if (draftType && draftType !== 'all' && d.draft_type !== draftType) return false;
+      if (keyword) {
+        const kw = keyword.toLowerCase().trim();
+        const sub = (d.subject || '').toLowerCase();
+        const title = (d.title || '').toLowerCase();
+        const to = (d.to_email || '').toLowerCase();
+        const toName = (d.to_name || '').toLowerCase();
+        if (!sub.includes(kw) && !title.includes(kw) && !to.includes(kw) && !toName.includes(kw)) {
+          return false;
+        }
+      }
+      return true;
+    });
+    list.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+    return list;
+  });
+
+  ipcMain.handle('drafts:get', async (_, id: number) => {
+    return (data.drafts || []).find((d) => d.id === id) || null;
+  });
+
+  ipcMain.handle('drafts:save', async (_, draft: Partial<DraftMail>) => {
+    const now = new Date().toISOString();
+    if (!data.drafts) data.drafts = [];
+    if (draft.id) {
+      const idx = data.drafts.findIndex((d) => d.id === draft.id);
+      if (idx !== -1) {
+        data.drafts[idx] = {
+          ...data.drafts[idx],
+          ...draft,
+          updated_at: now,
+        };
+        db.save();
+        return data.drafts[idx];
+      }
+    }
+    const newDraft: DraftMail = {
+      id: db.getNextId('drafts'),
+      account_id: draft.account_id,
+      account_name: draft.account_name,
+      from_email: draft.from_email,
+      to_email: draft.to_email || '',
+      to_name: draft.to_name || '',
+      subject: draft.subject || '',
+      body_html: draft.body_html || '',
+      draft_type: draft.draft_type || 'single',
+      title: draft.title || '',
+      account_ids: draft.account_ids || [],
+      group_ids: draft.group_ids || [],
+      recipients_text: draft.recipients_text || '',
+      min_interval: draft.min_interval || 3,
+      max_interval: draft.max_interval || 8,
+      created_at: now,
+      updated_at: now,
+    };
+    data.drafts.unshift(newDraft);
+    db.save();
+    return newDraft;
+  });
+
+  ipcMain.handle('drafts:delete', async (_, id: number) => {
+    data.drafts = (data.drafts || []).filter((d) => d.id !== id);
+    db.save();
+    return true;
+  });
+
+  ipcMain.handle('drafts:clear', async (_, params: { draftType?: string } = {}) => {
+    if (params.draftType && params.draftType !== 'all') {
+      data.drafts = (data.drafts || []).filter((d) => d.draft_type !== params.draftType);
+    } else {
+      data.drafts = [];
+    }
+    db.save();
+    return true;
+  });
+
   // 5. 联系人与分组
   ipcMain.handle('groups:list', async () => {
     return data.groups.map((g) => ({
@@ -645,6 +728,7 @@ export function registerIpcHandlers() {
       contacts: data.contacts,
       templates: data.templates,
       sent_mails: data.sent_mails || [],
+      drafts: data.drafts || [],
       backup_time: new Date().toISOString(),
     };
 
@@ -674,6 +758,7 @@ export function registerIpcHandlers() {
       if (Array.isArray(backup.contacts)) data.contacts = backup.contacts;
       if (Array.isArray(backup.templates)) data.templates = backup.templates;
       if (Array.isArray(backup.sent_mails)) data.sent_mails = backup.sent_mails;
+      if (Array.isArray(backup.drafts)) data.drafts = backup.drafts;
 
       db.save();
       return { success: true };

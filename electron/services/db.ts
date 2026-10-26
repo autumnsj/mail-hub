@@ -64,6 +64,28 @@ export interface SentMail {
   created_at: string;
 }
 
+// 草稿邮件 (草稿箱) 记录
+export interface DraftMail {
+  id: number;
+  account_id?: number;
+  account_name?: string;
+  from_email?: string;
+  to_email?: string;
+  to_name?: string;
+  subject?: string;
+  body_html?: string;
+  draft_type: 'single' | 'campaign'; // 单发草稿还是群发草稿
+  // 群发草稿专有参数
+  title?: string;
+  account_ids?: number[];
+  group_ids?: number[];
+  recipients_text?: string;
+  min_interval?: number;
+  max_interval?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ContactGroup {
   id: number;
   name: string;
@@ -133,6 +155,7 @@ interface DatabaseSchema {
   accounts: Account[];
   inbound_mails: InboundMail[];
   sent_mails: SentMail[]; // 已发送邮件
+  drafts: DraftMail[]; // 草稿箱
   groups: ContactGroup[];
   contacts: Contact[];
   templates: Template[];
@@ -169,6 +192,7 @@ class LocalDatabase {
         const content = fs.readFileSync(this.filePath, 'utf-8');
         const parsed = JSON.parse(content);
         if (!parsed.sent_mails) parsed.sent_mails = [];
+        if (!parsed.drafts) parsed.drafts = [];
         return parsed;
       } catch (e) {
         console.error('加载本地数据库异常，重置新结构:', e);
@@ -178,6 +202,7 @@ class LocalDatabase {
       accounts: [],
       inbound_mails: [],
       sent_mails: [],
+      drafts: [],
       groups: [],
       contacts: [],
       templates: [],
@@ -187,6 +212,7 @@ class LocalDatabase {
         accounts: 1,
         inbound_mails: 1,
         sent_mails: 1,
+        drafts: 1,
         groups: 1,
         contacts: 1,
         templates: 1,
@@ -221,6 +247,9 @@ class LocalDatabase {
   public getData(): DatabaseSchema {
     if (!this.data.sent_mails) {
       this.data.sent_mails = [];
+    }
+    if (!this.data.drafts) {
+      this.data.drafts = [];
     }
     return this.data;
   }
