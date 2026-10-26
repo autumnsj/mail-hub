@@ -271,7 +271,9 @@ export async function runCampaignDispatcher(campaignId: number) {
     activeCampaigns.delete(campaignId);
     camp.current_sending_to = '';
     camp.current_sending_from = '';
-    camp.current_delay_info = '';
+    if (camp.status !== 'completed' && camp.status !== 'paused') {
+      camp.current_delay_info = '';
+    }
     db.save();
   }
 }

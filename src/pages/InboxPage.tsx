@@ -368,9 +368,17 @@ export const InboxPage: React.FC = () => {
               }}
             >
               {activeMail.body_html ? (
-                <div
-                  dangerouslySetInnerHTML={{ __html: activeMail.body_html }}
-                  style={{ overflowX: 'auto' }}
+                <iframe
+                  title="mail-body"
+                  srcDoc={activeMail.body_html}
+                  sandbox="allow-same-origin allow-popups"
+                  style={{
+                    width: '100%',
+                    minHeight: 450,
+                    border: '1px solid #f0f0f0',
+                    borderRadius: 6,
+                    background: '#fff',
+                  }}
                 />
               ) : (
                 <pre

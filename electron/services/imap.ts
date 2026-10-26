@@ -34,87 +34,96 @@ function createImapClient(account: Account) {
 // 测试 IMAP 登录连通性
 export async function testImap(account: Account) {
   const client = createImapClient(account);
-  await client.connect();
-  await client.logout();
-  return true;
+  try {
+    await client.connect();
+    return true;
+  } finally {
+    try {
+      await client.logout();
+    } catch {}
+  }
 }
 
 // 同步收件箱
 export async function syncInbound(account: Account, limit = 30): Promise<number> {
   const client = createImapClient(account);
-  await client.connect();
-
-  const lock = await client.getMailboxLock('INBOX', { readOnly: true });
-  let newCount = 0;
-
   try {
-    const data = db.getData();
-    // 获取最近 limit 封邮件
-    const mailbox = client.mailbox;
-    const totalCount = mailbox && typeof mailbox !== 'boolean' ? mailbox.exists : 0;
-    const startSeq = Math.max(1, totalCount - limit + 1);
-    const messages = client.fetch({ seq: `*:${startSeq}` }, {
-      envelope: true,
-      source: true,
-      uid: true,
-    });
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX', { readOnly: true });
+    let newCount = 0;
 
-    for await (const msg of messages) {
-      const uidStr = String(msg.uid);
-      // 避免重复入库
-      const exists = data.inbound_mails.some(
-        (m) => m.account_id === account.id && m.uid === uidStr
-      );
-      if (exists) continue;
+    try {
+      const data = db.getData();
+      // 获取最近 limit 封邮件
+      const mailbox = client.mailbox;
+      const totalCount = mailbox && typeof mailbox !== 'boolean' ? mailbox.exists : 0;
+      const startSeq = Math.max(1, totalCount - limit + 1);
+      const messages = client.fetch({ seq: `*:${startSeq}` }, {
+        envelope: true,
+        source: true,
+        uid: true,
+      });
 
-      let bodyHtml = '';
-      let bodyText = '';
-      if (msg.source) {
-        try {
-          const parsed = await simpleParser(msg.source);
-          bodyHtml = parsed.html || '';
-          bodyText = parsed.text || '';
-        } catch {
-          bodyText = '(解析邮件正文异常)';
+      for await (const msg of messages) {
+        const uidStr = String(msg.uid);
+        // 避免重复入库
+        const exists = data.inbound_mails.some(
+          (m) => m.account_id === account.id && m.uid === uidStr
+        );
+        if (exists) continue;
+
+        let bodyHtml = '';
+        let bodyText = '';
+        if (msg.source) {
+          try {
+            const parsed = await simpleParser(msg.source);
+            bodyHtml = parsed.html || '';
+            bodyText = parsed.text || '';
+          } catch {
+            bodyText = '(解析邮件正文异常)';
+          }
         }
+
+        const env = msg.envelope;
+        const fromAddr = env?.from?.[0]?.address || '';
+        const fromName = env?.from?.[0]?.name || '';
+        const toAddr = env?.to?.[0]?.address || account.from_email;
+        const subject = env?.subject || '(无主题)';
+        const date = env?.date ? env.date.toISOString() : new Date().toISOString();
+        const messageId = env?.messageId || '';
+
+        const newMail: InboundMail = {
+          id: db.getNextId('inbound_mails'),
+          account_id: account.id,
+          account_name: account.name,
+          account_email: account.from_email,
+          uid: uidStr,
+          message_id: messageId,
+          from_address: fromAddr,
+          from_name: fromName,
+          to_address: toAddr,
+          subject,
+          body_html: bodyHtml,
+          body_text: bodyText,
+          date,
+          is_read: false,
+          created_at: new Date().toISOString(),
+        };
+
+        data.inbound_mails.push(newMail);
+        newCount++;
       }
 
-      const env = msg.envelope;
-      const fromAddr = env?.from?.[0]?.address || '';
-      const fromName = env?.from?.[0]?.name || '';
-      const toAddr = env?.to?.[0]?.address || account.from_email;
-      const subject = env?.subject || '(无主题)';
-      const date = env?.date ? env.date.toISOString() : new Date().toISOString();
-      const messageId = env?.messageId || '';
-
-      const newMail: InboundMail = {
-        id: db.getNextId('inbound_mails'),
-        account_id: account.id,
-        account_name: account.name,
-        account_email: account.from_email,
-        uid: uidStr,
-        message_id: messageId,
-        from_address: fromAddr,
-        from_name: fromName,
-        to_address: toAddr,
-        subject,
-        body_html: bodyHtml,
-        body_text: bodyText,
-        date,
-        is_read: false,
-        created_at: new Date().toISOString(),
-      };
-
-      data.inbound_mails.push(newMail);
-      newCount++;
+      account.last_sync_at = new Date().toISOString();
+      db.save();
+    } finally {
+      lock.release();
     }
 
-    account.last_sync_at = new Date().toISOString();
-    db.save();
+    return newCount;
   } finally {
-    lock.release();
-    await client.logout();
+    try {
+      await client.logout();
+    } catch {}
   }
-
-  return newCount;
 }

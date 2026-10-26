@@ -178,7 +178,14 @@ class LocalDatabase {
 
   public save(newData?: DatabaseSchema) {
     if (newData) this.data = newData;
-    fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
+    const tempPath = `${this.filePath}.tmp`;
+    try {
+      fs.writeFileSync(tempPath, JSON.stringify(this.data, null, 2), 'utf-8');
+      fs.renameSync(tempPath, this.filePath);
+    } catch (err) {
+      // 容错回退：直接写入
+      fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
+    }
   }
 
   public getNextId(table: keyof DatabaseSchema['next_id']): number {

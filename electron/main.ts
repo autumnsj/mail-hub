@@ -60,6 +60,21 @@ if (!gotTheLock) {
     });
   });
 
+  app.on('before-quit', () => {
+    // 退出前将所有 running 状态的任务安全转为 paused，防止下次打开死锁
+    const { db } = require('./services/db');
+    const data = db.getData();
+    let hasRunning = false;
+    data.campaigns.forEach((c: any) => {
+      if (c.status === 'running') {
+        c.status = 'paused';
+        c.current_delay_info = '应用退出，已自动暂停';
+        hasRunning = true;
+      }
+    });
+    if (hasRunning) db.save();
+  });
+
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
       app.quit();
