@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron';
+import { ipcMain, dialog, BrowserWindow } from 'electron';
+import fs from 'fs';
 import { db, Account, Contact, ContactGroup, Template, Campaign, TaskLog } from '../services/db';
 import { sendSingleMail, testSmtp, runCampaignDispatcher, pauseCampaign } from '../services/mailer';
 import { testImap, syncInbound } from '../services/imap';
@@ -450,5 +451,153 @@ export function registerIpcHandlers() {
       total_success: successCount,
       total_fail: failCount,
     };
+  });
+
+  // 8. 配置导入与导出
+  // 导出发件箱配置为 JSON 文件
+  ipcMain.handle('config:export-accounts', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const result = await dialog.showSaveDialog(win || undefined, {
+      title: '导出发件箱配置',
+      defaultPath: `mail_hub_accounts_${dateStr}.json`,
+      filters: [{ name: 'JSON 配置文件', extensions: ['json'] }],
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, message: '用户取消导出' };
+    }
+
+    // 格式化输出账号数据
+    fs.writeFileSync(result.filePath, JSON.stringify(data.accounts, null, 2), 'utf-8');
+    return { success: true, count: data.accounts.length, path: result.filePath };
+  });
+
+  // 从 JSON 文件导入发件箱配置
+  ipcMain.handle('config:import-accounts', async (event, mode: 'merge' | 'replace' = 'merge') => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(win || undefined, {
+      title: '导入发件箱配置文件',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON 配置文件', extensions: ['json'] }],
+    });
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { success: false, message: '用户取消导入' };
+    }
+
+    try {
+      const content = fs.readFileSync(result.filePaths[0], 'utf-8');
+      const importedList = JSON.parse(content);
+      if (!Array.isArray(importedList)) {
+        throw new Error('导入文件格式不合法，必须是发件箱数组');
+      }
+
+      let importedCount = 0;
+      if (mode === 'replace') {
+        data.accounts = [];
+      }
+
+      for (const item of importedList) {
+        if (!item.host || !item.username || !item.from_email) {
+          continue; // 跳过无效数据
+        }
+
+        const existingIndex = data.accounts.findIndex(
+          (a) => a.from_email.toLowerCase() === item.from_email.toLowerCase()
+        );
+
+        const normalizedAccount: Account = {
+          id: existingIndex !== -1 ? data.accounts[existingIndex].id : db.getNextId('accounts'),
+          name: item.name || item.from_email,
+          host: item.host,
+          port: item.port || 465,
+          username: item.username,
+          password: item.password || '',
+          from_email: item.from_email,
+          from_name: item.from_name || '',
+          use_ssl: item.use_ssl !== false,
+          daily_limit: item.daily_limit || 0,
+          sent_today: 0,
+          last_reset_date: new Date().toISOString().slice(0, 10),
+          status: item.status || 'active',
+          last_error: '',
+          enable_inbound: item.enable_inbound !== false,
+          imap_host: item.imap_host || '',
+          imap_port: item.imap_port || 993,
+          imap_use_ssl: item.imap_use_ssl !== false,
+          imap_username: item.imap_username || '',
+          imap_password: item.imap_password || '',
+          created_at: new Date().toISOString(),
+        };
+
+        if (existingIndex !== -1) {
+          data.accounts[existingIndex] = normalizedAccount;
+        } else {
+          data.accounts.push(normalizedAccount);
+        }
+        importedCount++;
+      }
+
+      db.save();
+      return { success: true, count: importedCount };
+    } catch (err: any) {
+      throw new Error('导入失败: ' + err.message);
+    }
+  });
+
+  // 完整备份导出 (包含发件箱、联系人、模板)
+  ipcMain.handle('config:export-backup', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const result = await dialog.showSaveDialog(win || undefined, {
+      title: '导出完整数据备份',
+      defaultPath: `mail_hub_backup_${dateStr}.json`,
+      filters: [{ name: 'JSON 备份文件', extensions: ['json'] }],
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false };
+    }
+
+    const backupData = {
+      accounts: data.accounts,
+      groups: data.groups,
+      contacts: data.contacts,
+      templates: data.templates,
+      backup_time: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(result.filePath, JSON.stringify(backupData, null, 2), 'utf-8');
+    return { success: true, path: result.filePath };
+  });
+
+  // 完整备份导入恢复
+  ipcMain.handle('config:import-backup', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(win || undefined, {
+      title: '选择恢复备份文件',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON 备份文件', extensions: ['json'] }],
+    });
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return { success: false };
+    }
+
+    try {
+      const content = fs.readFileSync(result.filePaths[0], 'utf-8');
+      const backup = JSON.parse(content);
+
+      if (Array.isArray(backup.accounts)) data.accounts = backup.accounts;
+      if (Array.isArray(backup.groups)) data.groups = backup.groups;
+      if (Array.isArray(backup.contacts)) data.contacts = backup.contacts;
+      if (Array.isArray(backup.templates)) data.templates = backup.templates;
+
+      db.save();
+      return { success: true };
+    } catch (err: any) {
+      throw new Error('恢复备份失败: ' + err.message);
+    }
   });
 }

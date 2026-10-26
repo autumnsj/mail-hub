@@ -23,6 +23,8 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   SyncOutlined,
+  ExportOutlined,
+  ImportOutlined,
 } from '@ant-design/icons';
 import { Account } from '../types/electron';
 
@@ -98,6 +100,31 @@ export const AccountsPage: React.FC = () => {
       fetchAccounts();
     } catch (e: any) {
       message.error(e.message);
+    }
+  };
+
+  // 导出发件箱配置文件 (JSON)
+  const handleExportAccounts = async () => {
+    try {
+      const res = await window.electronAPI.exportAccounts();
+      if (res.success) {
+        message.success(`成功导出 ${res.count} 个发件箱配置至文件！`);
+      }
+    } catch (e: any) {
+      message.error(e.message || '导出失败');
+    }
+  };
+
+  // 从文件导入发件箱配置 (JSON)
+  const handleImportAccounts = async () => {
+    try {
+      const res = await window.electronAPI.importAccounts('merge');
+      if (res.success) {
+        message.success(`成功导入并更新了 ${res.count} 个发件箱配置！`);
+        fetchAccounts();
+      }
+    } catch (e: any) {
+      message.error(e.message || '导入失败');
     }
   };
 
@@ -295,9 +322,17 @@ export const AccountsPage: React.FC = () => {
             配置 SMTP 发信与 IMAP 收信账号。群发时自动在勾选的邮箱之间轮询分摊发信配额。
           </p>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
-          添加邮箱配置
-        </Button>
+        <Space>
+          <Button icon={<ExportOutlined />} onClick={handleExportAccounts}>
+            导出配置 (JSON)
+          </Button>
+          <Button icon={<ImportOutlined />} onClick={handleImportAccounts}>
+            导入配置 (JSON)
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
+            添加邮箱配置
+          </Button>
+        </Space>
       </div>
 
       <Table

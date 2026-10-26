@@ -179,6 +179,11 @@ export interface ElectronAPI {
   deleteTemplate: (id: number) => Promise<boolean>;
 
   getStats: () => Promise<SystemStats>;
+
+  exportAccounts: () => Promise<{ success: boolean; count?: number; path?: string }>;
+  importAccounts: (mode?: 'merge' | 'replace') => Promise<{ success: boolean; count?: number }>;
+  exportBackup: () => Promise<{ success: boolean; path?: string }>;
+  importBackup: () => Promise<{ success: boolean }>;
 }
 
 declare global {

@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Button, Space, Table, Tag, Typography, Progress } from 'antd';
+import { Row, Col, Card, Statistic, Button, Space, Table, Tag, Typography, Progress, message } from 'antd';
 import {
   MailOutlined,
   SendOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   ClusterOutlined,
+  ExportOutlined,
+  ImportOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { SystemStats, Campaign } from '../types/electron';
@@ -45,6 +47,29 @@ export const DashboardPage: React.FC = () => {
   const totalSends = stats.total_success + stats.total_fail;
   const successRate = totalSends > 0 ? Math.round((stats.total_success / totalSends) * 100) : 100;
 
+  const handleExportBackup = async () => {
+    try {
+      const res = await window.electronAPI.exportBackup();
+      if (res.success) {
+        message.success('完整数据备份导出成功！');
+      }
+    } catch (e: any) {
+      message.error(e.message || '备份失败');
+    }
+  };
+
+  const handleImportBackup = async () => {
+    try {
+      const res = await window.electronAPI.importBackup();
+      if (res.success) {
+        message.success('数据备份恢复成功！');
+        fetchData();
+      }
+    } catch (e: any) {
+      message.error(e.message || '恢复失败');
+    }
+  };
+
   return (
     <div>
       <div
@@ -64,15 +89,21 @@ export const DashboardPage: React.FC = () => {
           </Paragraph>
         </div>
         <Space>
+          <Button icon={<ExportOutlined />} onClick={handleExportBackup}>
+            备份数据
+          </Button>
+          <Button icon={<ImportOutlined />} onClick={handleImportBackup}>
+            恢复备份
+          </Button>
           <Button
             type="primary"
             icon={<ClusterOutlined />}
-            size="large"
+            size="middle"
             onClick={() => navigate('/send/batch')}
           >
             发起多邮箱分摊群发
           </Button>
-          <Button icon={<SendOutlined />} size="large" onClick={() => navigate('/send/single')}>
+          <Button icon={<SendOutlined />} size="middle" onClick={() => navigate('/send/single')}>
             单封即时发送
           </Button>
         </Space>

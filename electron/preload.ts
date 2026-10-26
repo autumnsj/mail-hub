@@ -47,6 +47,12 @@ const api = {
 
   // Stats
   getStats: () => ipcRenderer.invoke('stats:get'),
+
+  // Config Import & Export
+  exportAccounts: () => ipcRenderer.invoke('config:export-accounts'),
+  importAccounts: (mode?: 'merge' | 'replace') => ipcRenderer.invoke('config:import-accounts', mode),
+  exportBackup: () => ipcRenderer.invoke('config:export-backup'),
+  importBackup: () => ipcRenderer.invoke('config:import-backup'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);
