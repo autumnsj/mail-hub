@@ -50,6 +50,7 @@ export interface InboundMail {
   subject: string;
   body_html: string;
   body_text: string;
+  attachments?: MailAttachment[];
   date: string;
   is_read: boolean;
   created_at: string;

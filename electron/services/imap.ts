@@ -1,7 +1,24 @@
+import { app } from 'electron';
+import fs from 'fs';
+import path from 'path';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
-import { db, Account, InboundMail } from './db';
+import { db, Account, InboundMail, MailAttachment } from './db';
 import { getFreshGoogleAccessToken } from './google-auth';
+
+function getInboundAttachmentDir(accountId: number, uid: string): string {
+  let baseDir = '.';
+  try {
+    if (app) baseDir = app.getPath('userData');
+  } catch {
+    baseDir = '.';
+  }
+  const dir = path.join(baseDir, 'attachments', 'inbound', `${accountId}_${uid}`);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
 
 async function createImapClient(account: Account) {
   let host = account.imap_host;
@@ -113,12 +130,48 @@ export async function syncInbound(account: Account, limit = 30): Promise<number>
 
         let bodyHtml = '';
         let bodyText = '';
+        const inboundAttachments: MailAttachment[] = [];
+
         if (msg.source) {
           try {
             const parsed = await simpleParser(msg.source);
             bodyHtml = parsed.html || '';
             bodyText = parsed.text || '';
-          } catch {
+
+            if (parsed.attachments && parsed.attachments.length > 0) {
+              const mailAttDir = getInboundAttachmentDir(account.id, uidStr);
+              let attIndex = 0;
+
+              for (const att of parsed.attachments) {
+                attIndex++;
+                // 1. 处理正文内嵌图片 (CID 替换为 Base64 data URL，离线沙箱中正常显示)
+                if (att.cid && bodyHtml && bodyHtml.includes(`cid:${att.cid}`)) {
+                  const base64Data = att.content.toString('base64');
+                  const mime = att.contentType || 'image/png';
+                  const dataUrl = `data:${mime};base64,${base64Data}`;
+                  bodyHtml = bodyHtml.split(`cid:${att.cid}`).join(dataUrl);
+                }
+
+                // 2. 将附件持久化写入本地目录
+                const rawFilename = att.filename || `attachment_${attIndex}`;
+                const safeName = rawFilename.replace(/[\\/:*?"<>|]/g, '_');
+                const savePath = path.join(mailAttDir, safeName);
+                fs.writeFileSync(savePath, att.content);
+
+                // 3. 将普通附件(或有实际文件内容的文件)记入附件列表供用户查看与下载
+                const isPureInline = att.related && att.cid && bodyHtml.includes(att.cid);
+                if (!isPureInline || att.contentDisposition === 'attachment' || (att.size && att.size > 10240)) {
+                  inboundAttachments.push({
+                    name: rawFilename,
+                    path: savePath,
+                    size: att.size || att.content.length,
+                    type: att.contentType,
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            console.error('解析邮件源失败:', err);
             bodyText = '(解析邮件正文异常)';
           }
         }
@@ -144,6 +197,7 @@ export async function syncInbound(account: Account, limit = 30): Promise<number>
           subject,
           body_html: bodyHtml,
           body_text: bodyText,
+          attachments: inboundAttachments.length > 0 ? inboundAttachments : undefined,
           date,
           is_read: false,
           created_at: new Date().toISOString(),

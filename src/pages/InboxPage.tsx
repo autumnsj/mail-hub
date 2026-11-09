@@ -12,15 +12,21 @@ import {
   Badge,
   Modal,
   Form,
+  Tooltip,
 } from 'antd';
 import {
   SyncOutlined,
   DeleteOutlined,
   RollbackOutlined,
   CheckOutlined,
+  PaperClipOutlined,
+  DownloadOutlined,
+  FolderOpenOutlined,
+  FolderViewOutlined,
 } from '@ant-design/icons';
 import { InboundMail, Account } from '../types/electron';
 import { RichEditor } from '../components/RichEditor';
+import { formatFileSize } from '../components/AttachmentUploader';
 
 export const InboxPage: React.FC = () => {
   const [mails, setMails] = useState<InboundMail[]>([]);
@@ -127,6 +133,33 @@ export const InboxPage: React.FC = () => {
       fetchMails();
     } catch (e: any) {
       message.error(e.message);
+    }
+  };
+
+  const handleOpenAttachment = async (filePath: string) => {
+    try {
+      await window.electronAPI.openAttachment(filePath);
+    } catch (e: any) {
+      message.error(e.message || '打开附件失败');
+    }
+  };
+
+  const handleShowAttachmentInFolder = async (filePath: string) => {
+    try {
+      await window.electronAPI.showAttachmentInFolder(filePath);
+    } catch (e: any) {
+      message.error(e.message || '定位附件失败');
+    }
+  };
+
+  const handleSaveAttachmentAs = async (filePath: string, defaultName?: string) => {
+    try {
+      const res = await window.electronAPI.saveAttachmentAs({ filePath, defaultName });
+      if (res && res.success) {
+        message.success(`附件已保存至: ${res.path}`);
+      }
+    } catch (e: any) {
+      message.error(e.message || '保存附件失败');
     }
   };
 
@@ -267,14 +300,21 @@ export const InboxPage: React.FC = () => {
             dataIndex: 'subject',
             render: (subject, record) => (
               <div>
-                <span
-                  style={{
-                    fontWeight: record.is_read ? 400 : 600,
-                    color: record.is_read ? '#444' : '#000',
-                  }}
-                >
-                  {subject || '(无主题)'}
-                </span>
+                <Space size={4}>
+                  {record.attachments && record.attachments.length > 0 && (
+                    <Tooltip title={`含 ${record.attachments.length} 个附件`}>
+                      <PaperClipOutlined style={{ color: '#1677ff' }} />
+                    </Tooltip>
+                  )}
+                  <span
+                    style={{
+                      fontWeight: record.is_read ? 400 : 600,
+                      color: record.is_read ? '#444' : '#000',
+                    }}
+                  >
+                    {subject || '(无主题)'}
+                  </span>
+                </Space>
                 <span style={{ fontSize: 12, color: '#999', marginLeft: 8 }}>
                   - 收于: {record.account_name}
                 </span>
@@ -360,6 +400,99 @@ export const InboxPage: React.FC = () => {
                 <span style={{ color: '#666' }}>{activeMail.date?.slice(0, 19).replace('T', ' ')}</span>
               </div>
             </div>
+
+            {/* 随信附件列表 */}
+            {activeMail.attachments && activeMail.attachments.length > 0 && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  background: '#f8fafc',
+                  borderRadius: 8,
+                  border: '1px solid #e2e8f0',
+                  marginBottom: 18,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 10,
+                  }}
+                >
+                  <Space>
+                    <PaperClipOutlined style={{ color: '#1677ff' }} />
+                    <strong style={{ color: '#1e293b' }}>
+                      随信附件 ({activeMail.attachments.length} 个，共计{' '}
+                      {formatFileSize(
+                        activeMail.attachments.reduce((sum, a) => sum + (a.size || 0), 0)
+                      )}
+                      )
+                    </strong>
+                  </Space>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {activeMail.attachments.map((att, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: '#fff',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: '1px solid #e2e8f0',
+                      }}
+                    >
+                      <Space style={{ overflow: 'hidden', flex: 1, marginRight: 12 }}>
+                        <PaperClipOutlined style={{ color: '#64748b' }} />
+                        <span
+                          style={{
+                            fontWeight: 500,
+                            color: '#1e293b',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={att.name}
+                        >
+                          {att.name}
+                        </span>
+                        <span style={{ color: '#94a3b8', fontSize: 12, flexShrink: 0 }}>
+                          ({formatFileSize(att.size)})
+                        </span>
+                      </Space>
+                      <Space size="small">
+                        <Button
+                          size="small"
+                          icon={<FolderOpenOutlined />}
+                          onClick={() => handleOpenAttachment(att.path)}
+                        >
+                          直接打开
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<FolderViewOutlined />}
+                          onClick={() => handleShowAttachmentInFolder(att.path)}
+                        >
+                          在文件夹定位
+                        </Button>
+                        <Button
+                          size="small"
+                          type="primary"
+                          ghost
+                          icon={<DownloadOutlined />}
+                          onClick={() => handleSaveAttachmentAs(att.path, att.name)}
+                        >
+                          另存为...
+                        </Button>
+                      </Space>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div
               className="selectable"

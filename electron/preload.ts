@@ -30,6 +30,11 @@ const api = {
   markInboundRead: (id: number, isRead: boolean) =>
     ipcRenderer.invoke('inbound:read', { id, isRead }),
   deleteInboundMail: (id: number) => ipcRenderer.invoke('inbound:delete', id),
+  openAttachment: (filePath: string) => ipcRenderer.invoke('inbound:open-attachment', filePath),
+  showAttachmentInFolder: (filePath: string) =>
+    ipcRenderer.invoke('inbound:show-attachment-in-folder', filePath),
+  saveAttachmentAs: (payload: { filePath: string; defaultName?: string }) =>
+    ipcRenderer.invoke('inbound:save-attachment-as', payload),
 
   // Sent Mails (发件箱)
   getSentMails: (params?: any) => ipcRenderer.invoke('sent:list', params),

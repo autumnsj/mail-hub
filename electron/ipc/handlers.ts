@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron';
+import { ipcMain, dialog, BrowserWindow, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { db, Account, Contact, ContactGroup, Template, Campaign, TaskLog, SentMail, DraftMail, MailAttachment } from '../services/db';
@@ -414,6 +414,42 @@ export function registerIpcHandlers() {
     data.inbound_mails = data.inbound_mails.filter((m) => m.id !== id);
     db.save();
     return true;
+  });
+
+  // 收件附件操作
+  ipcMain.handle('inbound:open-attachment', async (_, filePath: string) => {
+    if (!filePath || !fs.existsSync(filePath)) {
+      throw new Error('附件文件不存在或已被移除');
+    }
+    const err = await shell.openPath(filePath);
+    if (err) throw new Error(err);
+    return true;
+  });
+
+  ipcMain.handle('inbound:show-attachment-in-folder', async (_, filePath: string) => {
+    if (!filePath || !fs.existsSync(filePath)) {
+      throw new Error('附件文件不存在或已被移除');
+    }
+    shell.showItemInFolder(filePath);
+    return true;
+  });
+
+  ipcMain.handle('inbound:save-attachment-as', async (event, { filePath, defaultName }: { filePath: string; defaultName?: string }) => {
+    if (!filePath || !fs.existsSync(filePath)) {
+      throw new Error('附件文件不存在或已被移除');
+    }
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const saveResult = await dialog.showSaveDialog(win || undefined as any, {
+      title: '另存附件为...',
+      defaultPath: defaultName || path.basename(filePath),
+    });
+
+    if (saveResult.canceled || !saveResult.filePath) {
+      return { success: false };
+    }
+
+    fs.copyFileSync(filePath, saveResult.filePath);
+    return { success: true, path: saveResult.filePath };
   });
 
   // 4.1 发件箱 (已发送邮件 Sent Mails)
