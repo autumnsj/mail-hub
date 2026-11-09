@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
-import { Button, Space, Tooltip, Input, Modal, Dropdown } from 'antd';
+import { Button, Space, Tooltip, Input, Modal, Dropdown, message } from 'antd';
 import {
   BoldOutlined,
   ItalicOutlined,
@@ -13,9 +13,11 @@ import {
   OrderedListOutlined,
   LinkOutlined,
   PictureOutlined,
+  FileImageOutlined,
   ClearOutlined,
   CodeOutlined,
   TagOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 
 interface RichEditorProps {
@@ -40,11 +42,60 @@ export const RichEditor: React.FC<RichEditorProps> = ({
       Link.configure({
         openOnClick: false,
       }),
-      Image,
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+      }),
       Placeholder.configure({
         placeholder,
       }),
     ],
+    editorProps: {
+      handlePaste(view, event) {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.type.indexOf('image') === 0) {
+            const blob = item.getAsFile();
+            if (blob) {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                const dataUrl = e.target?.result as string;
+                if (dataUrl && editor) {
+                  editor.chain().focus().setImage({ src: dataUrl }).run();
+                  message.success('已自动粘贴剪贴板截图');
+                }
+              };
+              reader.readAsDataURL(blob);
+              return true;
+            }
+          }
+        }
+        return false;
+      },
+      handleDrop(view, event) {
+        const files = event.dataTransfer?.files;
+        if (!files || files.length === 0) return false;
+        let handled = false;
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          if (file.type.indexOf('image') === 0) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const dataUrl = e.target?.result as string;
+              if (dataUrl && editor) {
+                editor.chain().focus().setImage({ src: dataUrl }).run();
+                message.success(`已插入拖入的图片: ${file.name}`);
+              }
+            };
+            reader.readAsDataURL(file);
+            handled = true;
+          }
+        }
+        return handled;
+      },
+    },
     content: value,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
@@ -72,12 +123,39 @@ export const RichEditor: React.FC<RichEditorProps> = ({
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
   };
 
-  const addImage = () => {
-    const url = window.prompt('请输入图片在线 URL:');
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
+  const handleSelectLocalImage = async () => {
+    try {
+      const res = await window.electronAPI.selectImage();
+      if (res && res.dataUrl) {
+        editor.chain().focus().setImage({ src: res.dataUrl }).run();
+        message.success(`已成功插入图片: ${res.name}`);
+      }
+    } catch (e: any) {
+      message.error(e.message || '选择图片失败');
     }
   };
+
+  const handleAddNetworkImage = () => {
+    const url = window.prompt('请输入图片在线 URL (http/https):');
+    if (url && url.trim()) {
+      editor.chain().focus().setImage({ src: url.trim() }).run();
+    }
+  };
+
+  const imageMenuItems = [
+    {
+      key: 'local',
+      label: '选择本地图片插入',
+      icon: <FileImageOutlined />,
+      onClick: handleSelectLocalImage,
+    },
+    {
+      key: 'network',
+      label: '输入网络图片 URL',
+      icon: <LinkOutlined />,
+      onClick: handleAddNetworkImage,
+    },
+  ];
 
   const insertVariable = (variable: string) => {
     editor.chain().focus().insertContent(`{${variable}}`).run();
@@ -186,9 +264,12 @@ export const RichEditor: React.FC<RichEditorProps> = ({
               onClick={setLink}
             />
           </Tooltip>
-          <Tooltip title="插入网络图片">
-            <Button size="small" type="text" icon={<PictureOutlined />} onClick={addImage} />
-          </Tooltip>
+
+          <Dropdown menu={{ items: imageMenuItems }} placement="bottomLeft">
+            <Button size="small" type="text" icon={<PictureOutlined />}>
+              插入图片 <DownOutlined style={{ fontSize: 10 }} />
+            </Button>
+          </Dropdown>
 
           <span style={{ borderLeft: '1px solid #e8e8e8', margin: '0 4px', height: 16 }} />
 
@@ -237,6 +318,23 @@ export const RichEditor: React.FC<RichEditorProps> = ({
         onClick={() => editor.chain().focus()}
       >
         <EditorContent editor={editor} />
+      </div>
+
+      {/* 底部状态与提示栏 */}
+      <div
+        style={{
+          padding: '4px 12px',
+          background: '#fafafa',
+          borderTop: '1px solid #f0f0f0',
+          fontSize: 12,
+          color: '#8c8c8c',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <span>💡 提示：支持截图后直接按 Ctrl+V / Cmd+V 粘贴图片，或直接将图片拖拽到编辑区</span>
+        <span>正文图片自动按邮件原生 CID 优化防封防屏蔽</span>
       </div>
 
       {/* HTML 源码编辑模态框 */}

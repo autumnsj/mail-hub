@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer';
-import { db, Account, Campaign, TaskLog } from './db';
+import fs from 'fs';
+import path from 'path';
+import { db, Account, Campaign, TaskLog, MailAttachment } from './db';
 import { getFreshGoogleAccessToken } from './google-auth';
 
 // 变量替换辅助
@@ -58,7 +60,8 @@ export async function sendSingleMail(
   toEmail: string,
   toName: string,
   subject: string,
-  bodyHtml: string
+  bodyHtml: string,
+  attachments?: MailAttachment[]
 ) {
   const transporter = await createTransporter(account);
   const from = account.from_name
@@ -66,11 +69,55 @@ export async function sendSingleMail(
     : account.from_email;
   const to = toName ? `"${toName}" <${toEmail}>` : toEmail;
 
+  const mailAttachments: any[] = [];
+  let processedHtml = bodyHtml || '';
+
+  // 1. 智能转换正文内嵌图片 (Base64 -> CID 内嵌附件，彻底防止被 Outlook / Gmail / QQ 等客户端拦截过滤)
+  const base64ImgRegex = /src=["']data:(image\/[a-zA-Z0-9\+\-\.]+);base64,([A-Za-z0-9+/=\s]+)["']/gi;
+  let inlineImgIndex = 0;
+
+  processedHtml = processedHtml.replace(base64ImgRegex, (_match, mimeType, base64Content) => {
+    inlineImgIndex++;
+    const cleanBase64 = base64Content.replace(/\s/g, '');
+    let ext = 'png';
+    if (mimeType.includes('jpeg') || mimeType.includes('jpg')) ext = 'jpg';
+    else if (mimeType.includes('gif')) ext = 'gif';
+    else if (mimeType.includes('webp')) ext = 'webp';
+    else if (mimeType.includes('svg')) ext = 'svg';
+
+    const cid = `img_${Date.now()}_${inlineImgIndex}_${Math.random().toString(36).slice(2, 7)}@mailhub`;
+    
+    mailAttachments.push({
+      filename: `inline_image_${inlineImgIndex}.${ext}`,
+      content: Buffer.from(cleanBase64, 'base64'),
+      cid: cid,
+      contentDisposition: 'inline',
+      contentType: mimeType,
+    });
+
+    return `src="cid:${cid}"`;
+  });
+
+  // 2. 装载普通文件附件
+  if (attachments && Array.isArray(attachments)) {
+    for (const att of attachments) {
+      if (att && att.path) {
+        if (fs.existsSync(att.path)) {
+          mailAttachments.push({
+            filename: att.name || path.basename(att.path),
+            path: att.path,
+          });
+        }
+      }
+    }
+  }
+
   return await transporter.sendMail({
     from,
     to,
     subject,
-    html: bodyHtml,
+    html: processedHtml,
+    attachments: mailAttachments.length > 0 ? mailAttachments : undefined,
   });
 }
 
@@ -234,7 +281,8 @@ export async function runCampaignDispatcher(campaignId: number) {
             item.to_email,
             item.to_name,
             personalizedSubject,
-            personalizedBody
+            personalizedBody,
+            camp.attachments
           );
           sendSuccess = true;
           break;
@@ -255,6 +303,7 @@ export async function runCampaignDispatcher(campaignId: number) {
         item.status = 'success';
         item.sent_at = new Date().toISOString();
         item.error_msg = '';
+        item.attachments = camp.attachments;
         camp.success_count++;
         chosenAcc.sent_today++;
         batchSentCounter++;
@@ -262,6 +311,7 @@ export async function runCampaignDispatcher(campaignId: number) {
         item.status = 'failed';
         item.sent_at = new Date().toISOString();
         item.error_msg = lastErrMsg;
+        item.attachments = camp.attachments;
         camp.fail_count++;
       }
 
@@ -275,6 +325,7 @@ export async function runCampaignDispatcher(campaignId: number) {
         to_name: item.to_name,
         subject: personalizedSubject,
         body_html: personalizedBody,
+        attachments: camp.attachments,
         sent_type: 'campaign',
         campaign_id: camp.id,
         campaign_title: camp.title,

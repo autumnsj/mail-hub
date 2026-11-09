@@ -55,6 +55,14 @@ export interface InboundMail {
   created_at: string;
 }
 
+// 邮件附件信息
+export interface MailAttachment {
+  name: string;
+  path: string;
+  size?: number;
+  type?: string;
+}
+
 // 已发邮件 (发件箱) 记录
 export interface SentMail {
   id: number;
@@ -65,6 +73,7 @@ export interface SentMail {
   to_name: string;
   subject: string;
   body_html: string;
+  attachments?: MailAttachment[];
   sent_type: 'single' | 'campaign'; // 单发还是群发
   campaign_id?: number;
   campaign_title?: string;
@@ -84,6 +93,7 @@ export interface DraftMail {
   to_name?: string;
   subject?: string;
   body_html?: string;
+  attachments?: MailAttachment[];
   draft_type: 'single' | 'campaign'; // 单发草稿还是群发草稿
   // 群发草稿专有参数
   title?: string;
@@ -127,6 +137,7 @@ export interface Campaign {
   title: string;
   subject: string;
   body_html: string;
+  attachments?: MailAttachment[];
   account_ids: number[];
   status: 'draft' | 'running' | 'paused' | 'completed' | 'failed';
   total_count: number;
@@ -161,6 +172,7 @@ export interface TaskLog {
   to_email: string;
   to_name: string;
   subject: string;
+  attachments?: MailAttachment[];
   status: 'pending' | 'sending' | 'success' | 'failed';
   error_msg: string;
   retry_count?: number;

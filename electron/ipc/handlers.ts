@@ -1,6 +1,7 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'fs';
-import { db, Account, Contact, ContactGroup, Template, Campaign, TaskLog, SentMail, DraftMail } from '../services/db';
+import path from 'path';
+import { db, Account, Contact, ContactGroup, Template, Campaign, TaskLog, SentMail, DraftMail, MailAttachment } from '../services/db';
 import { sendSingleMail, testSmtp, runCampaignDispatcher, pauseCampaign } from '../services/mailer';
 import { testImap, syncInbound } from '../services/imap';
 import { startGoogleOAuthFlow } from '../services/google-auth';
@@ -122,11 +123,18 @@ export function registerIpcHandlers() {
   });
 
   // 2. 单发邮件
-  ipcMain.handle('send:single', async (_, { accountId, toEmail, toName, subject, bodyHtml }) => {
+  ipcMain.handle('send:single', async (_, { accountId, toEmail, toName, subject, bodyHtml, attachments }: {
+    accountId: number;
+    toEmail: string;
+    toName?: string;
+    subject: string;
+    bodyHtml: string;
+    attachments?: MailAttachment[];
+  }) => {
     const acc = data.accounts.find((a) => a.id === accountId);
     if (!acc) throw new Error('发件箱未找到');
 
-    await sendSingleMail(acc, toEmail, toName, subject, bodyHtml);
+    await sendSingleMail(acc, toEmail, toName, subject, bodyHtml, attachments);
 
     // 记录单发任务流水与已发送发件箱归档
     const logItem: TaskLog = {
@@ -137,6 +145,7 @@ export function registerIpcHandlers() {
       to_email: toEmail,
       to_name: toName || '',
       subject,
+      attachments,
       status: 'success',
       error_msg: '',
       sent_at: new Date().toISOString(),
@@ -154,6 +163,7 @@ export function registerIpcHandlers() {
       to_name: toName || '',
       subject,
       body_html: bodyHtml,
+      attachments,
       sent_type: 'single',
       status: 'success',
       sent_at: new Date().toISOString(),
@@ -170,6 +180,7 @@ export function registerIpcHandlers() {
     title: string;
     subject: string;
     body_html: string;
+    attachments?: MailAttachment[];
     account_ids: number[];
     group_ids?: number[];
     recipients_text?: string;
@@ -224,6 +235,7 @@ export function registerIpcHandlers() {
       title: payload.title,
       subject: payload.subject,
       body_html: payload.body_html,
+      attachments: payload.attachments,
       account_ids: payload.account_ids,
       status: 'draft',
       total_count: recipientMap.size,
@@ -256,6 +268,7 @@ export function registerIpcHandlers() {
         to_email: email,
         to_name: name,
         subject: payload.subject,
+        attachments: payload.attachments,
         status: 'pending',
         error_msg: '',
         created_at: new Date().toISOString(),
@@ -517,6 +530,7 @@ export function registerIpcHandlers() {
       to_name: draft.to_name || '',
       subject: draft.subject || '',
       body_html: draft.body_html || '',
+      attachments: draft.attachments || [],
       draft_type: draft.draft_type || 'single',
       title: draft.title || '',
       account_ids: draft.account_ids || [],
@@ -847,6 +861,62 @@ export function registerIpcHandlers() {
       return { success: true };
     } catch (err: any) {
       throw new Error('恢复备份失败: ' + err.message);
+    }
+  });
+
+  // 5. 附件与图片选择
+  ipcMain.handle('dialog:select-attachments', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(win || undefined as any, {
+      title: '选择邮件附件',
+      properties: ['openFile', 'multiSelections'],
+    });
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return [];
+    }
+
+    const attachments: MailAttachment[] = [];
+    for (const filePath of result.filePaths) {
+      try {
+        const stat = fs.statSync(filePath);
+        attachments.push({
+          name: path.basename(filePath),
+          path: filePath,
+          size: stat.size,
+        });
+      } catch (err) {
+        console.error('读取附件失败:', filePath, err);
+      }
+    }
+    return attachments;
+  });
+
+  ipcMain.handle('dialog:select-image', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(win || undefined as any, {
+      title: '选择插入正文的图片',
+      filters: [
+        { name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'] },
+      ],
+      properties: ['openFile'],
+    });
+
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+      return null;
+    }
+
+    const filePath = result.filePaths[0];
+    try {
+      const ext = path.extname(filePath).slice(1).toLowerCase();
+      const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+      const base64 = fs.readFileSync(filePath).toString('base64');
+      return {
+        name: path.basename(filePath),
+        dataUrl: `data:${mime};base64,${base64}`,
+      };
+    } catch (err: any) {
+      throw new Error(`读取图片失败: ${err.message}`);
     }
   });
 }

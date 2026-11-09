@@ -28,8 +28,10 @@ import {
   MailOutlined,
   RocketOutlined,
   ClearOutlined,
+  PaperClipOutlined,
 } from '@ant-design/icons';
 import { SentMail, Account } from '../types/electron';
+import { formatFileSize } from '../components/AttachmentUploader';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -131,6 +133,7 @@ export const SentPage: React.FC = () => {
         toName: mail.to_name,
         subject: mail.subject,
         bodyHtml: mail.body_html,
+        attachments: mail.attachments,
         accountId: mail.account_id,
       },
     });
@@ -168,15 +171,22 @@ export const SentPage: React.FC = () => {
       key: 'subject',
       ellipsis: true,
       render: (text: string, record: SentMail) => (
-        <a
-          onClick={() => {
-            setActiveMail(record);
-            setDrawerOpen(true);
-          }}
-          style={{ fontWeight: 500, color: '#262626' }}
-        >
-          {text || '(无主题)'}
-        </a>
+        <Space size={4}>
+          {record.attachments && record.attachments.length > 0 && (
+            <Tooltip title={`含 ${record.attachments.length} 个附件`}>
+              <PaperClipOutlined style={{ color: '#1677ff' }} />
+            </Tooltip>
+          )}
+          <a
+            onClick={() => {
+              setActiveMail(record);
+              setDrawerOpen(true);
+            }}
+            style={{ fontWeight: 500, color: '#262626' }}
+          >
+            {text || '(无主题)'}
+          </a>
+        </Space>
       ),
     },
     {
@@ -570,6 +580,23 @@ export const SentPage: React.FC = () => {
                     .replace('T', ' ')}
                 </span>
               </div>
+              {activeMail.attachments && activeMail.attachments.length > 0 && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #e8e8e8' }}>
+                  <strong style={{ display: 'inline-block', width: 75, color: '#595959' }}>
+                    邮件附件：
+                  </strong>
+                  <span style={{ color: '#1677ff' }}>
+                    共 {activeMail.attachments.length} 个附件
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, marginLeft: 75 }}>
+                    {activeMail.attachments.map((att, i) => (
+                      <Tag key={i} icon={<PaperClipOutlined />} color="blue">
+                        {att.name} ({formatFileSize(att.size)})
+                      </Tag>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 邮件正文渲染 (安全沙箱 iframe) */}

@@ -3,7 +3,8 @@ import { useLocation } from 'react-router-dom';
 import { Form, Input, Button, Select, Space, message, Card, Typography, Divider } from 'antd';
 import { SendOutlined, SaveOutlined } from '@ant-design/icons';
 import { RichEditor } from '../components/RichEditor';
-import { Account, Template } from '../types/electron';
+import { AttachmentUploader } from '../components/AttachmentUploader';
+import { Account, Template, MailAttachment } from '../types/electron';
 
 const { Title, Paragraph } = Typography;
 
@@ -12,6 +13,7 @@ export const SingleSendPage: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [content, setContent] = useState('<p>您好，这是一封重要邮件通知。</p>');
+  const [attachments, setAttachments] = useState<MailAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftId, setDraftId] = useState<number | null>(null);
@@ -35,12 +37,14 @@ export const SingleSendPage: React.FC = () => {
         bodyHtml?: string;
         accountId?: number;
         draftId?: number;
+        attachments?: MailAttachment[];
       };
       if (state.toEmail) form.setFieldValue('to_email', state.toEmail);
       if (state.toName) form.setFieldValue('to_name', state.toName);
       if (state.subject) form.setFieldValue('subject', state.subject);
       if (state.accountId) form.setFieldValue('account_id', state.accountId);
       if (state.bodyHtml) setContent(state.bodyHtml);
+      if (state.attachments) setAttachments(state.attachments);
       if (state.draftId) {
         setDraftId(state.draftId);
         message.info('已载入草稿内容，编辑后可直接发送或更新草稿');
@@ -73,6 +77,7 @@ export const SingleSendPage: React.FC = () => {
         to_name: values.to_name,
         subject: values.subject || '（未命名草稿）',
         body_html: content,
+        attachments: attachments,
         draft_type: 'single',
       });
       if (res && res.id) {
@@ -101,6 +106,7 @@ export const SingleSendPage: React.FC = () => {
         toName: values.to_name,
         subject: values.subject,
         bodyHtml: content,
+        attachments: attachments,
       });
 
       // 若发送自草稿，发送成功后自动从草稿箱中移除该草稿
@@ -195,6 +201,11 @@ export const SingleSendPage: React.FC = () => {
 
           <Form.Item label="邮件正文 (所见即所得编辑器)" required>
             <RichEditor value={content} onChange={setContent} height={320} />
+          </Form.Item>
+
+          {/* 附件上传 */}
+          <Form.Item label="邮件附件 (支持多附件、文档、表格、压缩包、图片等)">
+            <AttachmentUploader attachments={attachments} onChange={setAttachments} />
           </Form.Item>
 
           <Divider />

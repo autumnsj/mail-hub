@@ -26,8 +26,10 @@ import {
   SendOutlined,
   RocketOutlined,
   ClearOutlined,
+  PaperClipOutlined,
 } from '@ant-design/icons';
 import { DraftMail } from '../types/electron';
+import { formatFileSize } from '../components/AttachmentUploader';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -111,6 +113,7 @@ export const DraftsPage: React.FC = () => {
           title: draft.title,
           subject: draft.subject,
           bodyHtml: draft.body_html,
+          attachments: draft.attachments,
           account_ids: draft.account_ids,
           group_ids: draft.group_ids,
           recipients_text: draft.recipients_text,
@@ -128,6 +131,7 @@ export const DraftsPage: React.FC = () => {
           toName: draft.to_name,
           subject: draft.subject,
           bodyHtml: draft.body_html,
+          attachments: draft.attachments,
           accountId: draft.account_id,
         },
       });
@@ -144,12 +148,19 @@ export const DraftsPage: React.FC = () => {
       ellipsis: true,
       render: (_: any, record: DraftMail) => (
         <div>
-          <a
-            onClick={() => handleContinueEdit(record)}
-            style={{ fontWeight: 600, color: '#1677ff', fontSize: 14 }}
-          >
-            {record.subject || record.title || '(未命名草稿)'}
-          </a>
+          <Space size={4}>
+            {record.attachments && record.attachments.length > 0 && (
+              <Tooltip title={`含 ${record.attachments.length} 个附件`}>
+                <PaperClipOutlined style={{ color: '#1677ff' }} />
+              </Tooltip>
+            )}
+            <a
+              onClick={() => handleContinueEdit(record)}
+              style={{ fontWeight: 600, color: '#1677ff', fontSize: 14 }}
+            >
+              {record.subject || record.title || '(未命名草稿)'}
+            </a>
+          </Space>
           {record.draft_type === 'campaign' && record.title && (
             <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 2 }}>
               任务标识: {record.title}
@@ -545,6 +556,23 @@ export const DraftsPage: React.FC = () => {
                     .replace('T', ' ')}
                 </span>
               </div>
+              {activeDraft.attachments && activeDraft.attachments.length > 0 && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #e8e8e8' }}>
+                  <strong style={{ display: 'inline-block', width: 75, color: '#595959' }}>
+                    已存附件：
+                  </strong>
+                  <span style={{ color: '#1677ff' }}>
+                    共 {activeDraft.attachments.length} 个附件
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, marginLeft: 75 }}>
+                    {activeDraft.attachments.map((att, i) => (
+                      <Tag key={i} icon={<PaperClipOutlined />} color="blue">
+                        {att.name} ({formatFileSize(att.size)})
+                      </Tag>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 正文渲染 */}

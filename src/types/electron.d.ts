@@ -50,6 +50,13 @@ export interface InboundMail {
   created_at: string;
 }
 
+export interface MailAttachment {
+  name: string;
+  path: string;
+  size?: number;
+  type?: string;
+}
+
 export interface SentMail {
   id: number;
   account_id: number;
@@ -59,6 +66,7 @@ export interface SentMail {
   to_name: string;
   subject: string;
   body_html: string;
+  attachments?: MailAttachment[];
   sent_type: 'single' | 'campaign';
   campaign_id?: number;
   campaign_title?: string;
@@ -77,6 +85,7 @@ export interface DraftMail {
   to_name?: string;
   subject?: string;
   body_html?: string;
+  attachments?: MailAttachment[];
   draft_type: 'single' | 'campaign';
   title?: string;
   account_ids?: number[];
@@ -120,6 +129,7 @@ export interface Campaign {
   title: string;
   subject: string;
   body_html: string;
+  attachments?: MailAttachment[];
   account_ids: number[];
   status: 'draft' | 'running' | 'paused' | 'completed' | 'failed';
   total_count: number;
@@ -150,6 +160,7 @@ export interface TaskLog {
   to_email: string;
   to_name: string;
   subject: string;
+  attachments?: MailAttachment[];
   status: 'pending' | 'sending' | 'success' | 'failed';
   error_msg: string;
   sent_at?: string;
@@ -178,12 +189,14 @@ export interface ElectronAPI {
     toName?: string;
     subject: string;
     bodyHtml: string;
+    attachments?: MailAttachment[];
   }) => Promise<boolean>;
 
   createCampaign: (payload: {
     title: string;
     subject: string;
     body_html: string;
+    attachments?: MailAttachment[];
     account_ids: number[];
     group_ids?: number[];
     recipients_text?: string;
@@ -261,6 +274,10 @@ export interface ElectronAPI {
   importAccounts: (mode?: 'merge' | 'replace') => Promise<{ success: boolean; count?: number }>;
   exportBackup: () => Promise<{ success: boolean; path?: string }>;
   importBackup: () => Promise<{ success: boolean }>;
+
+  // Attachments & Images
+  selectAttachments: () => Promise<MailAttachment[]>;
+  selectImage: () => Promise<{ name: string; dataUrl: string } | null>;
 
   getUpdateStatus: () => Promise<UpdateStatusPayload>;
   checkForUpdates: () => Promise<UpdateStatusPayload>;

@@ -29,7 +29,8 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RichEditor } from '../components/RichEditor';
-import { Account, ContactGroup, Template } from '../types/electron';
+import { AttachmentUploader } from '../components/AttachmentUploader';
+import { Account, ContactGroup, Template, MailAttachment } from '../types/electron';
 
 const { Title, Paragraph } = Typography;
 
@@ -40,6 +41,7 @@ export const BatchSendPage: React.FC = () => {
   const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [content, setContent] = useState('<p>尊敬的 {name}：</p><p>这是发给您的专属通知内容...</p>');
+  const [attachments, setAttachments] = useState<MailAttachment[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -67,6 +69,7 @@ export const BatchSendPage: React.FC = () => {
         title?: string;
         subject?: string;
         bodyHtml?: string;
+        attachments?: MailAttachment[];
         account_ids?: number[];
         group_ids?: number[];
         recipients_text?: string;
@@ -79,6 +82,7 @@ export const BatchSendPage: React.FC = () => {
       if (state.title) form.setFieldValue('title', state.title);
       if (state.subject) form.setFieldValue('subject', state.subject);
       if (state.bodyHtml) setContent(state.bodyHtml);
+      if (state.attachments) setAttachments(state.attachments);
       if (state.account_ids && state.account_ids.length > 0) {
         setSelectedAccounts(state.account_ids);
         form.setFieldValue('account_ids', state.account_ids);
@@ -140,6 +144,7 @@ export const BatchSendPage: React.FC = () => {
         title: values.title || '（未命名群发任务）',
         subject: values.subject || '（未命名主题）',
         body_html: content,
+        attachments: attachments,
         account_ids: selectedAccounts,
         group_ids: values.group_ids || [],
         recipients_text: values.recipients || '',
@@ -184,6 +189,7 @@ export const BatchSendPage: React.FC = () => {
         title: values.title,
         subject: values.subject,
         body_html: content,
+        attachments: attachments,
         account_ids: selectedAccounts,
         group_ids: values.group_ids || [],
         recipients_text: values.recipients || '',
@@ -559,6 +565,11 @@ export const BatchSendPage: React.FC = () => {
 
           <Form.Item label="邮件正文 (支持富文本与变量)" required>
             <RichEditor value={content} onChange={setContent} height={320} />
+          </Form.Item>
+
+          {/* 附件上传 */}
+          <Form.Item label="邮件附件 (支持多附件、文档、表格、压缩包、图片等)">
+            <AttachmentUploader attachments={attachments} onChange={setAttachments} />
           </Form.Item>
 
           <Divider />

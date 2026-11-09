@@ -27,8 +27,10 @@ import {
   SyncOutlined,
   SettingOutlined,
   DashboardOutlined,
+  PaperClipOutlined,
 } from '@ant-design/icons';
 import { Campaign, TaskLog } from '../types/electron';
+import { formatFileSize } from '../components/AttachmentUploader';
 
 export const TasksPage: React.FC = () => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -179,7 +181,14 @@ export const TasksPage: React.FC = () => {
       dataIndex: 'title',
       render: (title: string, r: Campaign) => (
         <div>
-          <strong style={{ fontSize: 14 }}>{title}</strong>
+          <Space>
+            <strong style={{ fontSize: 14 }}>{title}</strong>
+            {r.attachments && r.attachments.length > 0 && (
+              <Tag icon={<PaperClipOutlined />} color="blue">
+                {r.attachments.length} 个附件
+              </Tag>
+            )}
+          </Space>
           <div style={{ fontSize: 12, color: '#666' }}>主题：{r.subject}</div>
           {r.current_delay_info && r.status === 'running' && (
             <div style={{ fontSize: 12, color: '#1677ff', marginTop: 3 }}>
@@ -444,6 +453,29 @@ export const TasksPage: React.FC = () => {
           </Space>
         }
       >
+        {currentCampaign?.attachments && currentCampaign.attachments.length > 0 && (
+          <div
+            style={{
+              padding: '8px 12px',
+              background: '#f0f5ff',
+              borderRadius: 6,
+              marginBottom: 12,
+              border: '1px solid #adc6ff',
+            }}
+          >
+            <span style={{ fontWeight: 600, color: '#1d39c4', marginRight: 8 }}>
+              任务随信附件 ({currentCampaign.attachments.length})：
+            </span>
+            <Space wrap>
+              {currentCampaign.attachments.map((att, i) => (
+                <Tag key={i} icon={<PaperClipOutlined />} color="blue">
+                  {att.name} ({formatFileSize(att.size)})
+                </Tag>
+              ))}
+            </Space>
+          </div>
+        )}
+
         <Table
           rowKey="id"
           dataSource={logs}

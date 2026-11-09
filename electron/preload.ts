@@ -69,6 +69,10 @@ const api = {
   exportBackup: () => ipcRenderer.invoke('config:export-backup'),
   importBackup: () => ipcRenderer.invoke('config:import-backup'),
 
+  // Attachments & Images
+  selectAttachments: () => ipcRenderer.invoke('dialog:select-attachments'),
+  selectImage: () => ipcRenderer.invoke('dialog:select-image'),
+
   // Auto Updater
   getUpdateStatus: () => ipcRenderer.invoke('updater:get-status'),
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
