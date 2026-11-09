@@ -1,5 +1,8 @@
 # Mail Hub (纯本地跨平台桌面邮箱管理器)
 
+> 🌐 **官方网站**：[https://autumnsj.github.io/mail-hub/](https://autumnsj.github.io/mail-hub/)
+> 📦 **最新安装包下载**：[GitHub Releases (Windows / macOS)](https://github.com/autumnsj/mail-hub/releases/latest)
+
 基于 **Electron 30 + React 18 + TypeScript + Ant Design 5 + Tiptap** 纯本地重构的跨平台桌面应用。**独立原生窗口运行（非网页），数据 100% 保存在本地电脑，完美支持 Windows 与 macOS！**
 
 ---

@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MailHub - 纯本地跨平台桌面邮箱管理器 & 多邮箱智能分摊群发客户端</title>
+  <meta name="description" content="MailHub 是一款纯本地运行的跨平台桌面邮件客户端，数据 100% 存储于本机电脑。支持多发件箱智能轮换分摊、逐封独立投递、防封控随机抖动与大休眠、随信附件、正文截图直接粘贴与原生 CID 内嵌防屏蔽，完美支持 Windows 与 macOS。">
+  <meta name="keywords" content="邮件客户端,邮件群发,外贸获客邮件,邮件防封,多邮箱分摊,Electron邮件客户端,Gmail OAuth,本地邮件管理">
+  
+  <!-- Open Graph / Social Media -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="MailHub - 纯本地跨平台桌面邮箱管理器 & 多邮箱分摊群发工具">
+  <meta property="og:description" content="数据 100% 保存在本地电脑。支持多发件箱智能轮换分摊、逐封 1 对 1 投递防垃圾邮件、正文图片原生 CID 防屏蔽与全格式附件。">
+  <meta property="og:url" content="https://autumnsj.github.io/mail-hub/">
+  <meta property="og:image" content="https://autumnsj.github.io/mail-hub/favicon.svg">
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --bg-card: rgba(18, 24, 38, 0.7);
+      --bg-card-hover: rgba(28, 36, 56, 0.85);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 102, 241, 0.5);
+      --primary: #4f46e5;
+      --primary-light: #6366f1;
+      --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%);
+      --accent: #06b6d4;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-sub: #64748b;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient Lighting / Glow Backgrounds */
+    .ambient-glow-1 {
+      position: absolute;
+      top: -120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 480px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.22) 0%, rgba(59, 130, 246, 0.12) 40%, transparent 70%);
+      filter: blur(80px);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .ambient-glow-2 {
+      position: absolute;
+      top: 1400px;
+      left: 10%;
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, rgba(6, 182, 212, 0.08) 50%, transparent 70%);
+      filter: blur(90px);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* Navigation */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      background: rgba(11, 15, 25, 0.75);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand img {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text-main);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-github:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-download-nav {
+      background: var(--primary-gradient);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+
+    .btn-download-nav:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+
+    /* Hero Section */
+    .hero {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 72px 24px 40px;
+      text-align: center;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 24px;
+    }
+
+    .badge-pill .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #818cf8;
+      box-shadow: 0 0 8px #818cf8;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.3rem, 5vw, 3.8rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 20px;
+      background: linear-gradient(180deg, #ffffff 30%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p.lead {
+      font-size: clamp(1.05rem, 2vw, 1.25rem);
+      color: var(--text-muted);
+      max-width: 760px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+
+    /* Download CTA Buttons */
+    .cta-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 48px;
+    }
+
+    .primary-downloads {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px;
+    }
+
+    .btn-main-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 28px;
+      border-radius: 12px;
+      background: var(--primary-gradient);
+      color: #ffffff;
+      font-size: 1.05rem;
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.45);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .btn-main-download:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 30px -5px rgba(99, 102, 241, 0.6);
+    }
+
+    .btn-secondary-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 22px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      font-size: 1rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-secondary-download:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .download-meta {
+      font-size: 0.85rem;
+      color: var(--text-sub);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .download-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Window Mockup */
+    .mockup-wrapper {
+      max-width: 1080px;
+      margin: 0 auto 80px;
+      padding: 10px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 100%);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: 0 30px 80px -15px rgba(0, 0, 0, 0.8), 0 0 50px -10px rgba(99, 102, 241, 0.15);
+    }
+
+    .mockup-window {
+      background: #111625;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      text-align: left;
+    }
+
+    .mockup-header {
+      background: #0d111d;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .traffic-lights {
+      display: flex;
+      gap: 7px;
+    }
+
+    .traffic-light {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+
+    .traffic-close { background: #ff5f56; }
+    .traffic-min { background: #ffbd2e; }
+    .traffic-max { background: #27c93f; }
+
+    .mockup-title {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+
+    .mockup-body {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      min-height: 480px;
+    }
+
+    .mockup-sidebar {
+      background: #0d1220;
+      border-right: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .sidebar-category {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 8px 10px 4px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      color: #94a3b8;
+      font-size: 0.85rem;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+
+    .sidebar-item.active {
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      font-weight: 600;
+    }
+
+    .sidebar-badge {
+      margin-left: auto;
+      font-size: 0.72rem;
+      padding: 1px 6px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #cbd5e1;
+    }
+
+    .mockup-main {
+      padding: 24px;
+      background: #111625;
+      overflow-y: auto;
+    }
+
+    .mockup-card {
+      background: #161c2e;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+
+    .mockup-card-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .account-pill-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .account-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: #0f1422;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 0.8rem;
+    }
+
+    .tag-active {
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+    }
+
+    .attachment-preview-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .attachment-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: #0d1220;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 6px;
+      font-size: 0.78rem;
+      color: #c7d2fe;
+    }
+
+    /* Features Grid */
+    .section-title-wrap {
+      text-align: center;
+      max-width: 720px;
+      margin: 0 auto 56px;
+      padding: 0 20px;
+    }
+
+    .section-tag {
+      color: var(--accent);
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .section-desc {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+    }
+
+    .features-grid {
+      max-width: 1200px;
+      margin: 0 auto 100px;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 24px;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      backdrop-filter: blur(12px);
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(99, 102, 241, 0.3);
+      transform: translateY(-4px);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      color: #818cf8;
+      font-size: 1.4rem;
+    }
+
+    .feature-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #f1f5f9;
+    }
+
+    .feature-card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.65;
+    }
+
+    /* Comparison Table Section */
+    .compare-section {
+      max-width: 1080px;
+      margin: 0 auto 100px;
+      padding: 0 24px;
+    }
+
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
+    }
+
+    table.compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    table.compare-table th, table.compare-table td {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    table.compare-table th {
+      background: rgba(255, 255, 255, 0.03);
+      color: #cbd5e1;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .col-highlight {
+      background: rgba(99, 102, 241, 0.08);
+      color: #e0e7ff;
+      font-weight: 600;
+    }
+
+    .badge-check {
+      color: #34d399;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+
+    .badge-cross {
+      color: #f87171;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* FAQ Section */
+    .faq-section {
+      max-width: 840px;
+      margin: 0 auto 100px;
+      padding: 0 24px;
+    }
+
+    .faq-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+
+    .faq-question {
+      padding: 18px 22px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      font-size: 1.05rem;
+      user-select: none;
+    }
+
+    .faq-question:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .faq-answer {
+      padding: 0 22px 18px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      font-size: 0.95rem;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      background: #090c15;
+      padding: 48px 24px 36px;
+      color: var(--text-sub);
+      font-size: 0.9rem;
+    }
+
+    .footer-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 20px;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--text-main);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .mockup-body {
+        grid-template-columns: 1fr;
+      }
+      .mockup-sidebar {
+        display: none;
+      }
+      .nav-links {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow-1"></div>
+  <div class="ambient-glow-2"></div>
+
+  <!-- Header Navigation -->
+  <header>
+    <div class="nav-container">
+      <a href="#" class="brand">
+        <img src="favicon.svg" alt="MailHub Logo">
+        <span>MailHub</span>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#features">核心特性</a>
+        <a href="#preview">产品界面</a>
+        <a href="#compare">方案对比</a>
+        <a href="#faq">常见问题</a>
+      </nav>
+
+      <div class="nav-actions">
+        <a href="https://github.com/autumnsj/mail-hub" target="_blank" class="btn-github">
+          <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          <span>Star on GitHub</span>
+        </a>
+        <a href="#download" class="btn-download-nav">免费下载</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="badge-pill">
+      <span class="pulse-dot"></span>
+      <span id="version-pill">MailHub v1.0.3 · 全新支持随信附件与正文原生防屏蔽</span>
+    </div>
+
+    <h1>纯本地安全运行<br>多邮箱智能分摊群发客户端</h1>
+
+    <p class="lead">
+      专为外贸拓展、商务沟通与运营团队打造的跨平台邮件工作台。<strong>数据 100% 留存在本地电脑</strong>，支持多发件箱 Round-Robin 智能轮换、逐封独立投递、防封控随机微抖动、全格式随信附件与正文图片原生 CID 防屏蔽。
+    </p>
+
+    <!-- Download CTA Buttons -->
+    <div class="cta-group" id="download">
+      <div class="primary-downloads">
+        <a id="btn-primary-os" href="https://github.com/autumnsj/mail-hub/releases/latest" class="btn-main-download">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2 2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span id="btn-primary-text">下载最新版本 (Windows / macOS)</span>
+        </a>
+
+        <a id="btn-secondary-os" href="https://github.com/autumnsj/mail-hub/releases" target="_blank" class="btn-secondary-download">
+          <span>查看所有历史架构发布包</span>
+        </a>
+      </div>
+
+      <div class="download-meta">
+        <span>⚡ 跨平台原生支持</span>
+        <span>•</span>
+        <span>💻 Windows 10/11 (x64)</span>
+        <span>•</span>
+        <span>🍎 macOS (Apple Silicon M系列 / Intel)</span>
+        <span>•</span>
+        <span>🛡️ 100% 离线隐私保证</span>
+      </div>
+    </div>
+
+    <!-- App Window Mockup -->
+    <div class="mockup-wrapper" id="preview">
+      <div class="mockup-window">
+        <div class="mockup-header">
+          <div class="traffic-lights">
+            <div class="traffic-light traffic-close"></div>
+            <div class="traffic-light traffic-min"></div>
+            <div class="traffic-light traffic-max"></div>
+          </div>
+          <div class="mockup-title">MailHub - 多邮箱智能分摊群发 (逐封投递)</div>
+          <div style="width: 48px;"></div>
+        </div>
+
+        <div class="mockup-body">
+          <!-- Sidebar -->
+          <div class="mockup-sidebar">
+            <div class="sidebar-category">邮件任务</div>
+            <a href="javascript:;" class="sidebar-item active">
+              <span>🚀 多箱群发投递</span>
+              <span class="sidebar-badge" style="background:#4f46e5;color:#fff;">新</span>
+            </a>
+            <a href="javascript:;" class="sidebar-item">
+              <span>✉️ 单封即时发送</span>
+            </a>
+            <a href="javascript:;" class="sidebar-item">
+              <span>📥 IMAP 收件箱</span>
+              <span class="sidebar-badge">9+</span>
+            </a>
+            <a href="javascript:;" class="sidebar-item">
+              <span>📤 已发送归档</span>
+            </a>
+            <a href="javascript:;" class="sidebar-item">
+              <span>📝 草稿箱</span>
+            </a>
+
+            <div class="sidebar-category" style="margin-top: 12px;">配置管理</div>
+            <a href="javascript:;" class="sidebar-item">
+              <span>⚙️ 发件箱管理</span>
+              <span class="sidebar-badge">4</span>
+            </a>
+            <a href="javascript:;" class="sidebar-item">
+              <span>👥 客户联系人群组</span>
+            </a>
+            <a href="javascript:;" class="sidebar-item">
+              <span>📊 任务监控中心</span>
+            </a>
+          </div>
+
+          <!-- Main Content Mockup -->
+          <div class="mockup-main">
+            <!-- Accounts Allocation Card -->
+            <div class="mockup-card">
+              <div class="mockup-card-title">
+                <span style="color:#60a5fa;">⚡ 参与分摊的发件邮箱 (轮询调度防封)</span>
+                <span class="tag-active" style="margin-left:auto;">已就绪 3 个账号</span>
+              </div>
+              <div class="account-pill-list">
+                <div class="account-pill">
+                  <span><strong>Alex (Gmail)</strong> — alex.work@gmail.com</span>
+                  <span style="color:#94a3b8;">今日已发: 18/500 · OAuth 2.0</span>
+                </div>
+                <div class="account-pill">
+                  <span><strong>Sales (企业邮)</strong> — service@company.com</span>
+                  <span style="color:#94a3b8;">今日已发: 42/1000 · SMTP:465</span>
+                </div>
+                <div class="account-pill">
+                  <span><strong>Support (网易企业邮)</strong> — support@global.net</span>
+                  <span style="color:#94a3b8;">今日已发: 5/600 · 待命轮换</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Anti-Spam Control Card -->
+            <div class="mockup-card" style="border-left: 3px solid #10b981;">
+              <div class="mockup-card-title">
+                <span style="color:#34d399;">🎯 防封调度策略：限定 60 分钟内平摊发完</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; font-size:0.82rem; color:#94a3b8;">
+                <span>待投递收件人: <strong style="color:#f8fafc;">120 封</strong></span>
+                <span>动态测算单封间隔: <strong style="color:#818cf8;">24.0~36.0 秒</strong> (带20%随机抖动)</span>
+                <span>批次大休眠: <strong style="color:#34d399;">每10封停歇30秒</strong></span>
+              </div>
+            </div>
+
+            <!-- Email Editor Preview -->
+            <div class="mockup-card">
+              <div class="mockup-card-title">
+                <span>邮件正文与随信附件</span>
+              </div>
+              <div style="font-size:0.85rem; color:#cbd5e1; line-height:1.6; margin-bottom:12px;">
+                <p>尊敬的 <strong>{name}</strong> 经理：</p>
+                <p>这是针对贵公司定制的 2026 年度技术服务白皮书，请查阅随信附件与产品架构图。</p>
+              </div>
+
+              <!-- Attachments Preview -->
+              <div style="font-size:0.75rem; color:#94a3b8; margin-bottom:4px;">📎 随信附件列表 (2 个)：</div>
+              <div class="attachment-preview-box">
+                <div class="attachment-chip">
+                  <span>📄 2026_产品规格白皮书.pdf</span>
+                  <span style="color:#94a3b8;">(2.4 MB)</span>
+                </div>
+                <div class="attachment-chip">
+                  <span>📊 报价明细清单.xlsx</span>
+                  <span style="color:#94a3b8;">(185 KB)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <section class="features-section" id="features">
+    <div class="section-title-wrap">
+      <div class="section-tag">Powerful Features</div>
+      <h2 class="section-title">为高效沟通与高送达率而生</h2>
+      <p class="section-desc">打破传统网页群发的封号风险与隐私泄露，MailHub 从底层彻底重塑邮件投递体验。</p>
+    </div>
+
+    <div class="features-grid">
+      <!-- Card 1 -->
+      <div class="feature-card">
+        <div class="feature-icon">🔄</div>
+        <h3>多邮箱智能轮询分摊</h3>
+        <p>勾选任意多个发件邮箱，系统自动采用 Round-Robin 轮换机制，将一大批收件人均匀分摊给各个邮箱发出。配合单日限额熔断保护，彻底化解单账号频繁发信导致的封禁风控。</p>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <h3>1 对 1 独立投递与防封抖动</h3>
+        <p>严格采用单人单信投递，收件人彼此 100% 不可见。支持固定间隔随机抖动（如 3~8 秒随机浮动模拟人工点击），支持连续发送 N 封后深度休眠，更支持限定总耗时智能匀速平摊。</p>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="feature-card">
+        <div class="feature-icon">📎</div>
+        <h3>全格式附件与图片防屏蔽</h3>
+        <p>无论单发还是群发均支持拖拽多选附件（PDF、Excel、压缩包等）。正文支持截图按 Ctrl+V 直接粘贴与拖拽图片，发送时自动智能转换为原生 MIME CID 内嵌格式，杜绝 Outlook/Gmail 空白红叉。</p>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>100% 纯本地离线隐私存储</h3>
+        <p>不经过任何第三方云端中转服务器！发件配置、收件人名单、邮件内容均 100% 存储于您的本地设备，商业核心机密不泄露，随时可一键备份并迁移到新电脑。</p>
+      </div>
+
+      <!-- Card 5 -->
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Google OAuth 2.0 官方授权</h3>
+        <p>内置完整的 Google OAuth 2.0 授权流程，无需在 Gmail 繁琐生成 16 位应用密码。点击即可唤起浏览器登录授权，自动安全刷新 Token，体验极速顺畅。</p>
+      </div>
+
+      <!-- Card 6 -->
+      <div class="feature-card">
+        <div class="feature-icon">📥</div>
+        <h3>IMAP 聚合收件与一键回复</h3>
+        <p>支持多邮箱聚合收取邮件，采用只读模式绝不破坏原有未读状态。阅读邮件时可一键引用原文快捷回复，支持随信附件直接打开、在文件夹定位与另存为。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison Section -->
+  <section class="compare-section" id="compare">
+    <div class="section-title-wrap">
+      <div class="section-tag">Comparison</div>
+      <h2 class="section-title">为什么选择 MailHub？</h2>
+      <p class="section-desc">对比传统邮件群发方式，体验不可同日而语</p>
+    </div>
+
+    <div class="table-container">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>对比维度</th>
+            <th>传统网页抄送 / 密送</th>
+            <th>传统云端群发 SaaS</th>
+            <th class="col-highlight">MailHub 桌面客户端</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>客户隐私</strong></td>
+            <td><span class="badge-cross">✕ 容易暴露所有人地址</span></td>
+            <td><span class="badge-cross">✕ 客户名单上传至第三方</span></td>
+            <td class="col-highlight"><span class="badge-check">✓ 100% 单人独立信件，数据留存本地</span></td>
+          </tr>
+          <tr>
+            <td><strong>封号风控</strong></td>
+            <td><span class="badge-cross">✕ 高频连续发信必遭封杀</span></td>
+            <td><span class="badge-cross">✕ 共享公共 IP 容易进黑名单</span></td>
+            <td class="col-highlight"><span class="badge-check">✓ 多箱轮询分摊 + 随机抖动 + 批次大休眠</span></td>
+          </tr>
+          <tr>
+            <td><strong>正文图片显示</strong></td>
+            <td><span class="badge-cross">✕ Base64 常被 Outlook 过滤</span></td>
+            <td><span class="badge-cross">✕ 外部图床 URL 易被拦截</span></td>
+            <td class="col-highlight"><span class="badge-check">✓ 原生 MIME CID 内嵌，100% 正常显示</span></td>
+          </tr>
+          <tr>
+            <td><strong>附件随信投递</strong></td>
+            <td><span class="badge-cross">✕ 群发通常不支持或大小受限</span></td>
+            <td><span class="badge-cross">✕ 需额外按文件流量计费</span></td>
+            <td class="col-highlight"><span class="badge-check">✓ 原生支持多附件，拖拽即用，无额外费用</span></td>
+          </tr>
+          <tr>
+            <td><strong>数据掌控权</strong></td>
+            <td><span class="badge-cross">✕ 依赖单一平台</span></td>
+            <td><span class="badge-cross">✕ 账号欠费即丢失历史记录</span></td>
+            <td class="col-highlight"><span class="badge-check">✓ 开源透明，JSON/SQLite 离线数据永久掌控</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="faq-section" id="faq">
+    <div class="section-title-wrap">
+      <div class="section-tag">Frequently Asked Questions</div>
+      <h2 class="section-title">常见问题解答</h2>
+      <p class="section-desc">关于 MailHub 的安全性、原理与使用细节</p>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">
+        <span>Q: 我的邮箱账号密码和客户名单是否会被上传？</span>
+        <span>+</span>
+      </div>
+      <div class="faq-answer">
+        绝对不会。MailHub 是一款完全在本地运行的纯桌面客户端，源码完全开源透明。所有发件箱参数、IMAP 密码/授权码、收发件记录均存储在您电脑本机的应用数据目录中，绝不设立任何中转收集服务器。
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">
+        <span>Q: 为什么“逐封独立投递”能大幅提高送达率？</span>
+        <span>+</span>
+      </div>
+      <div class="faq-answer">
+        传统的群发或抄送是一封信里塞入几十甚至几百个收件人，邮件服务商（如 QQ、163、Gmail、Outlook）的反垃圾算法能立即识别出这种行为并将信件扔进垃圾箱。MailHub 则是严格模拟人工，一封一封单独投递给每个客户，每一封信都只有一位收件人，彼此完全独立隔离，送达率自然大幅提升。
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">
+        <span>Q: 为什么发出的正文图片在客户那里不会显示为红叉？</span>
+        <span>+</span>
+      </div>
+      <div class="faq-answer">
+        许多邮件客户端（尤其是企业常用的 Outlook）出于网络安全考虑，默认会屏蔽外链网络图片或直接过滤 Base64 数据图片。MailHub 在发信时会自动将正文图片提取为标准 MIME 规范的 Content-ID (CID) 内嵌附件，作为邮件本体的一部分一同发出，因此任何客户端无需联网下载外部图床即可原生完整渲染。
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-question">
+        <span>Q: 支持哪些邮箱服务商？</span>
+        <span>+</span>
+      </div>
+      <div class="faq-answer">
+        支持所有标准 SMTP 和 IMAP 协议的邮箱！包括但不限于：Gmail（支持官方 OAuth 2.0 一键授权）、QQ 邮箱、网易 163/126 邮箱、腾讯企业邮、阿里企业邮、Outlook / Office 365 以及各类自建域名企业邮局。
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <img src="favicon.svg" alt="MailHub Logo" style="width:24px; height:24px; border-radius:6px;">
+        <strong>MailHub</strong>
+        <span>© 2026 MailHub Team. Released under the MIT License.</span>
+      </div>
+
+      <div class="footer-links">
+        <a href="https://github.com/autumnsj/mail-hub" target="_blank">GitHub 仓库</a>
+        <a href="https://github.com/autumnsj/mail-hub/releases" target="_blank">Releases 列表</a>
+        <a href="https://github.com/autumnsj/mail-hub/issues" target="_blank">报告问题与反馈</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Smart Release Fetcher & OS Detection -->
+  <script>
+    (function () {
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      const isMac = userAgent.includes('mac') || userAgent.includes('darwin');
+      const isWindows = userAgent.includes('win');
+
+      const btnPrimary = document.getElementById('btn-primary-os');
+      const btnPrimaryText = document.getElementById('btn-primary-text');
+      const btnSecondary = document.getElementById('btn-secondary-os');
+      const versionPill = document.getElementById('version-pill');
+
+      // 默认初始展示文案
+      if (isMac) {
+        btnPrimaryText.innerText = '下载 macOS 版 (.dmg - 苹果芯片/Intel)';
+        btnSecondary.querySelector('span').innerText = '获取 Windows 安装包 (.exe)';
+      } else if (isWindows) {
+        btnPrimaryText.innerText = '下载 Windows 安装包 (.exe)';
+        btnSecondary.querySelector('span').innerText = '获取 macOS 安装包 (.dmg)';
+      }
+
+      // 请求 GitHub Releases 动态解析最新文件下载地址
+      fetch('https://api.github.com/repos/autumnsj/mail-hub/releases/latest')
+        .then(response => {
+          if (!response.ok) throw new Error('Network error');
+          return response.json();
+        })
+        .then(data => {
+          if (!data || !data.assets) return;
+          const tag = data.tag_name || 'v1.0.3';
+          versionPill.innerText = `MailHub ${tag} 现已发布 · 全新支持随信附件与正文原生防屏蔽`;
+
+          let winExeAsset = null;
+          let macArmDmgAsset = null;
+          let macDmgAsset = null;
+
+          data.assets.forEach(asset => {
+            const name = asset.name.toLowerCase();
+            if (name.endsWith('.exe') && (name.includes('setup') || !winExeAsset)) {
+              winExeAsset = asset;
+            }
+            if (name.endsWith('.dmg')) {
+              if (name.includes('arm64')) macArmDmgAsset = asset;
+              else macDmgAsset = asset;
+            }
+          });
+
+          if (isMac) {
+            const targetMac = macArmDmgAsset || macDmgAsset;
+            if (targetMac) {
+              btnPrimary.href = targetMac.browser_download_url;
+              btnPrimaryText.innerText = `下载 macOS 版 (${tag} - DMG)`;
+            }
+            if (winExeAsset) {
+              btnSecondary.href = winExeAsset.browser_download_url;
+              btnSecondary.querySelector('span').innerText = `下载 Windows 版 (.exe)`;
+            }
+          } else if (isWindows) {
+            if (winExeAsset) {
+              btnPrimary.href = winExeAsset.browser_download_url;
+              btnPrimaryText.innerText = `下载 Windows 安装包 (${tag} - Setup.exe)`;
+            }
+            const targetMac = macArmDmgAsset || macDmgAsset;
+            if (targetMac) {
+              btnSecondary.href = targetMac.browser_download_url;
+              btnSecondary.querySelector('span').innerText = `下载 macOS 安装包 (.dmg)`;
+            }
+          }
+        })
+        .catch(() => {
+          // 降级使用静态链接
+        });
+
+      // FAQ Accordion
+      document.querySelectorAll('.faq-question').forEach(q => {
+        q.addEventListener('click', () => {
+          const item = q.parentElement;
+          const ans = item.querySelector('.faq-answer');
+          const isHidden = window.getComputedStyle(ans).display === 'none';
+          ans.style.display = isHidden ? 'block' : 'none';
+          q.querySelector('span:last-child').innerText = isHidden ? '−' : '+';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

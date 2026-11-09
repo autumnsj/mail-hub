@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+  <!-- Envelope Body -->
+  <path d="M14 22C14 20.3431 15.3431 19 17 19H47C48.6569 19 50 20.3431 50 22V42C50 43.6569 48.6569 45 47 45H17C15.3431 45 14 43.6569 14 42V22Z" fill="rgba(255,255,255,0.15)"/>
+  <path d="M15 21L30.5 32.625C31.3889 33.2917 32.6111 33.2917 33.5 32.625L49 21" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Rocket / Bolt Accents -->
+  <path d="M32 15L35 21H29L32 15Z" fill="url(#glow)"/>
+</svg>
