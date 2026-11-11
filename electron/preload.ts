@@ -29,6 +29,8 @@ const api = {
   syncInboundMails: (accountId?: number) => ipcRenderer.invoke('inbound:sync', accountId),
   markInboundRead: (id: number, isRead: boolean) =>
     ipcRenderer.invoke('inbound:read', { id, isRead }),
+  markInboundStar: (id: number, isStarred: boolean) =>
+    ipcRenderer.invoke('inbound:star', { id, isStarred }),
   deleteInboundMail: (id: number) => ipcRenderer.invoke('inbound:delete', id),
   openAttachment: (filePath: string) => ipcRenderer.invoke('inbound:open-attachment', filePath),
   showAttachmentInFolder: (filePath: string) =>

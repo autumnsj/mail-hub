@@ -200,6 +200,7 @@ export async function syncInbound(account: Account, limit = 30): Promise<number>
           attachments: inboundAttachments.length > 0 ? inboundAttachments : undefined,
           date,
           is_read: false,
+          is_starred: false,
           created_at: new Date().toISOString(),
         };
 

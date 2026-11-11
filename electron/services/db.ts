@@ -53,6 +53,7 @@ export interface InboundMail {
   attachments?: MailAttachment[];
   date: string;
   is_read: boolean;
+  is_starred?: boolean;
   created_at: string;
 }
 

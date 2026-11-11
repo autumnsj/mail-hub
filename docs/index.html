@@ -718,7 +718,7 @@
   <section class="hero">
     <div class="badge-pill">
       <span class="pulse-dot"></span>
-      <span id="version-pill">MailHub v1.0.3 · 全新支持随信附件与正文原生防屏蔽</span>
+      <span id="version-pill">MailHub v1.0.4 · 全新支持重要邮件星标标记与快捷筛选</span>
     </div>
 
     <h1>纯本地安全运行<br>多邮箱智能分摊群发客户端</h1>
@@ -1070,8 +1070,8 @@
         })
         .then(data => {
           if (!data || !data.assets) return;
-          const tag = data.tag_name || 'v1.0.3';
-          versionPill.innerText = `MailHub ${tag} 现已发布 · 全新支持随信附件与正文原生防屏蔽`;
+          const tag = data.tag_name || 'v1.0.4';
+          versionPill.innerText = `MailHub ${tag} 现已发布 · 全新支持重要邮件星标标记与快捷筛选`;
 
           let winExeAsset = null;
           let macArmDmgAsset = null;

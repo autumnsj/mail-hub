@@ -48,6 +48,7 @@ export interface InboundMail {
   attachments?: MailAttachment[];
   date: string;
   is_read: boolean;
+  is_starred?: boolean;
   created_at: string;
 }
 
@@ -230,11 +231,13 @@ export interface ElectronAPI {
   getInboundMails: (params: {
     accountId?: number;
     isRead?: string;
+    isStarred?: boolean;
     keyword?: string;
   }) => Promise<InboundMail[]>;
   getInboundMail: (id: number) => Promise<InboundMail | null>;
   syncInboundMails: (accountId?: number) => Promise<{ totalNew: number; errors: string[] }>;
   markInboundRead: (id: number, isRead: boolean) => Promise<boolean>;
+  markInboundStar: (id: number, isStarred: boolean) => Promise<boolean>;
   deleteInboundMail: (id: number) => Promise<boolean>;
   openAttachment: (filePath: string) => Promise<boolean>;
   showAttachmentInFolder: (filePath: string) => Promise<boolean>;

@@ -351,11 +351,13 @@ export function registerIpcHandlers() {
   });
 
   // 4. 收件箱 (IMAP)
-  ipcMain.handle('inbound:list', async (_, { accountId, isRead, keyword }) => {
+  ipcMain.handle('inbound:list', async (_, { accountId, isRead, isStarred, keyword }) => {
     let list = data.inbound_mails.filter((m) => {
       if (accountId && accountId !== 0 && m.account_id !== accountId) return false;
       if (isRead === 'unread' && m.is_read) return false;
       if (isRead === 'read' && !m.is_read) return false;
+      if (isRead === 'starred' && !m.is_starred) return false;
+      if (isStarred === true && !m.is_starred) return false;
       if (keyword) {
         const kw = keyword.toLowerCase();
         const sub = (m.subject || '').toLowerCase();
@@ -372,6 +374,15 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('inbound:get', async (_, id: number) => {
     return data.inbound_mails.find((m) => m.id === id) || null;
+  });
+
+  ipcMain.handle('inbound:star', async (_, { id, isStarred }) => {
+    const item = data.inbound_mails.find((m) => m.id === id);
+    if (item) {
+      item.is_starred = Boolean(isStarred);
+      db.save();
+    }
+    return true;
   });
 
   ipcMain.handle('inbound:sync', async (_, accountId?: number) => {

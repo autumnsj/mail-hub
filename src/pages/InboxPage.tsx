@@ -23,6 +23,8 @@ import {
   DownloadOutlined,
   FolderOpenOutlined,
   FolderViewOutlined,
+  StarOutlined,
+  StarFilled,
 } from '@ant-design/icons';
 import { InboundMail, Account } from '../types/electron';
 import { RichEditor } from '../components/RichEditor';
@@ -122,6 +124,23 @@ export const InboxPage: React.FC = () => {
       message.success(next ? '已标为已读' : '已标为未读');
     } catch (e: any) {
       message.error(e.message);
+    }
+  };
+
+  const handleToggleStar = async (record: InboundMail, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      const next = !record.is_starred;
+      await window.electronAPI.markInboundStar(record.id, next);
+      setMails((prev) =>
+        prev.map((m) => (m.id === record.id ? { ...m, is_starred: next } : m))
+      );
+      if (activeMail && activeMail.id === record.id) {
+        setActiveMail((prev) => (prev ? { ...prev, is_starred: next } : null));
+      }
+      message.success(next ? '已加星标 (标为重要)' : '已取消星标');
+    } catch (e: any) {
+      message.error(e.message || '标记失败');
     }
   };
 
@@ -237,13 +256,14 @@ export const InboxPage: React.FC = () => {
           </Select>
 
           <Select
-            style={{ width: 120 }}
+            style={{ width: 140 }}
             value={isReadFilter}
             onChange={(val) => setIsReadFilter(val)}
           >
             <Select.Option value="all">全部邮件</Select.Option>
             <Select.Option value="unread">仅看未读</Select.Option>
             <Select.Option value="read">仅看已读</Select.Option>
+            <Select.Option value="starred">⭐ 仅看星标</Select.Option>
           </Select>
 
           <Input.Search
@@ -277,8 +297,33 @@ export const InboxPage: React.FC = () => {
           {
             title: '',
             dataIndex: 'is_read',
-            width: 40,
-            render: (isRead) => (!isRead ? <Badge status="processing" /> : null),
+            width: 28,
+            render: (isRead) => (!isRead ? <Badge status="processing" title="未读邮件" /> : null),
+          },
+          {
+            title: '',
+            dataIndex: 'is_starred',
+            width: 36,
+            render: (isStarred, record) => (
+              <Tooltip title={isStarred ? '取消星标 (重要)' : '设为星标 (重要)'}>
+                <span
+                  onClick={(e) => handleToggleStar(record, e)}
+                  style={{
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    lineHeight: 1,
+                  }}
+                >
+                  {isStarred ? (
+                    <StarFilled style={{ color: '#faad14' }} />
+                  ) : (
+                    <StarOutlined style={{ color: '#bfbfbf' }} />
+                  )}
+                </span>
+              </Tooltip>
+            ),
           },
           {
             title: '发件人',
@@ -329,23 +374,40 @@ export const InboxPage: React.FC = () => {
           },
           {
             title: '操作',
-            width: 120,
+            width: 130,
             render: (_, record) => (
               <Space onClick={(e) => e.stopPropagation()}>
-                <Button
-                  size="small"
-                  type="text"
-                  icon={<CheckOutlined />}
-                  title={record.is_read ? '标为未读' : '标为已读'}
-                  onClick={(e) => handleToggleRead(record, e)}
-                />
+                <Tooltip title={record.is_starred ? '取消星标' : '设为星标 (重要)'}>
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={
+                      record.is_starred ? (
+                        <StarFilled style={{ color: '#faad14' }} />
+                      ) : (
+                        <StarOutlined style={{ color: '#8c8c8c' }} />
+                      )
+                    }
+                    onClick={(e) => handleToggleStar(record, e)}
+                  />
+                </Tooltip>
+                <Tooltip title={record.is_read ? '标为未读' : '标为已读'}>
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<CheckOutlined style={{ color: record.is_read ? '#8c8c8c' : '#1677ff' }} />}
+                    onClick={(e) => handleToggleRead(record, e)}
+                  />
+                </Tooltip>
                 <Popconfirm
                   title="确认删除该本地邮件？"
                   onConfirm={() => handleDeleteMail(record.id)}
                   okText="删除"
                   cancelText="取消"
                 >
-                  <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+                  <Tooltip title="删除邮件">
+                    <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+                  </Tooltip>
                 </Popconfirm>
               </Space>
             ),
@@ -355,12 +417,35 @@ export const InboxPage: React.FC = () => {
 
       {/* 邮件正文阅读 Drawer */}
       <Drawer
-        title={activeMail?.subject || '邮件详情'}
+        title={
+          <Space>
+            {activeMail?.is_starred && (
+              <Tag color="gold" icon={<StarFilled />}>
+                星标重要
+              </Tag>
+            )}
+            <span>{activeMail?.subject || '邮件详情'}</span>
+          </Space>
+        }
         width={750}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         extra={
           <Space>
+            {activeMail && (
+              <Button
+                icon={
+                  activeMail.is_starred ? (
+                    <StarFilled style={{ color: '#faad14' }} />
+                  ) : (
+                    <StarOutlined />
+                  )
+                }
+                onClick={() => handleToggleStar(activeMail)}
+              >
+                {activeMail.is_starred ? '取消星标' : '标为星标'}
+              </Button>
+            )}
             <Button type="primary" icon={<RollbackOutlined />} onClick={openReplyModal}>
               一键回复邮件
             </Button>
